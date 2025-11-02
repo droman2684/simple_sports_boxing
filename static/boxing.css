@@ -1,145 +1,184 @@
-/* --- Arena background --- */
-:root{
-  --ring-blue: #0b1f3a;
-  --ring-dark: #091427;
-  --accent: #e5b200;      /* title accent, “belt gold” */
-  --rope-red: #c21c1c;
-  --rope-white: #ffffff;
-  --rope-blue: #1f5fbf;
+/* ===========================
+   Simple Sports Sims — Boxing
+   Dark/Ring Theme + UI fixes
+   =========================== */
+
+/* --- Theme variables --- */
+:root {
+  --ring-deep: #08111f;
+  --ring-dark: #0b1422;
+  --ring-blue: #0f1d33;
+  --ring-line: rgba(255,255,255,0.10);
+  --ink: #e9edff;
+  --muted: #a8b3d1;
+  --accent: #ffd86b;
+  --accent-2: #7ad0ff;
 }
 
-.bg-arena{
+/* --- Background arena gradient --- */
+.bg-arena {
   background:
     radial-gradient(1200px 600px at 50% -100px, rgba(255,255,255,.06), transparent 70%),
     radial-gradient(800px 400px at 10% 10%, rgba(255,255,255,.04), transparent 60%),
-    linear-gradient(180deg, var(--ring-dark), var(--ring-blue));
-  min-height:100vh;
+    linear-gradient(180deg, var(--ring-deep), var(--ring-blue));
+  min-height: 100vh;
 }
 
-/* --- Ropes (decor bands) --- */
-.rope{
-  height:10px;
-  background-image:
-    linear-gradient(90deg, var(--rope-red) 0 33%, var(--rope-white) 33% 66%, var(--rope-blue) 66% 100%);
-  box-shadow: 0 2px 0 rgba(0,0,0,.25), inset 0 -1px 0 rgba(255,255,255,.2);
+/* --- Base text colors on dark --- */
+body, p, td, th, label, input, select, textarea {
+  color: var(--ink) !important;
 }
-.rope-top{ position: sticky; top:0; z-index: 1031; }
-.rope-mid{ margin: 0 0 8px 0; }
-.rope-bottom{ margin-top: 16px; }
+small, .small, .text-muted { color: var(--muted) !important; }
 
-/* --- Hero --- */
-.hero-wrap{
-  position:relative;
-  background:
-    linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.25)),
-    url("{{ url_for('static', filename='ring_bg.jpg') }}");
-  background-size: cover;
-  background-position: center;
-  color: #fff;
-  border-bottom: 1px solid rgba(255,255,255,.15);
+/* --- Accent helpers --- */
+.text-accent { color: var(--accent) !important; }
+.tracking-wide { letter-spacing: .08em; text-transform: uppercase; }
+
+/* --- Navbar / ring bars --- */
+.bg-ring {
+  background: linear-gradient(180deg, #0e1a2d, #0a1526);
 }
-.hero-inner{
-  padding: 28px 0;
+.bg-ring-dark {
+  background: linear-gradient(180deg, #0a1322, #070f1b);
 }
-.logo-stack{
-  display:flex;
-  justify-content: center;
+.navbar-dark .navbar-brand,
+.navbar-dark .nav-link {
+  color: var(--ink) !important;
+}
+.navbar-dark .nav-link:hover { color: #fff !important; }
+
+/* --- Ropes (decor bars) --- */
+.rope {
+  height: 6px;
+  background: linear-gradient(90deg, #d33, #eee, #d33);
+  opacity: .35;
+}
+.rope-top   { box-shadow: 0 2px 0 rgba(0,0,0,.25) inset; }
+.rope-mid   { margin: .5rem 0; }
+.rope-bottom{ box-shadow: 0 -2px 0 rgba(0,0,0,.25) inset; }
+
+/* --- Hero header --- */
+.hero-wrap {
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0));
+  padding: 1rem 0 0.5rem 0;
+  border-bottom: 1px solid var(--ring-line);
+}
+.logo-stack {
+  display: flex;
   align-items: center;
-  gap: 20px;
+  justify-content: center;
+  gap: 18px;
 }
-.logo-left, .logo-right{
-  height: 96px;
-  filter: drop-shadow(0 6px 10px rgba(0,0,0,.35));
+.logo-left, .logo-right {
+  height: 80px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,.4));
 }
-.brand-title h1{
-  letter-spacing: .08em;
-}
-.brand-title h2{
-  color: var(--accent);
-  letter-spacing: .15em;
-}
-.tracking-wide{ letter-spacing: .12em; }
+.brand-title h1 { color: var(--ink); }
+.brand-title h2 { color: var(--accent); }
 
-/* --- Navbar --- */
-.bg-ring{
-  background: linear-gradient(180deg, rgba(0,0,0,.7), rgba(0,0,0,.85));
-  backdrop-filter: blur(4px);
+/* --- Cards / tables --- */
+.card {
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--ring-line);
+  color: var(--ink);
+  backdrop-filter: blur(2px);
 }
-.bg-ring-dark{
-  background: linear-gradient(180deg, rgba(0,0,0,.9), rgba(0,0,0,1));
+.card-header {
+  background: rgba(255,255,255,.04);
+  border-bottom: 1px solid var(--ring-line);
+  color: var(--ink);
 }
-.navbar .nav-link{
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  color: #d6e0ff;
-}
-.navbar .nav-link:hover{ color: #ffffff; }
-
-/* --- Cards / tables / buttons --- */
-.card{
-  border: 1px solid rgba(255,255,255,.1);
-  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
-  color: #f6f8ff;
-}
-.table{
+.table {
   --bs-table-bg: rgba(255,255,255,.03);
   --bs-table-striped-bg: rgba(255,255,255,.06);
-  --bs-table-color: #e9edff;
-  border-color: rgba(255,255,255,.1);
+  --bs-table-color: var(--ink);
+  border-color: var(--ring-line);
 }
-.btn-primary{
-  background: linear-gradient(180deg, #1f64ff, #1240a9);
-  border-color: #113a98;
-  font-weight: 700;
-  letter-spacing: .05em;
-  text-transform: uppercase;
+.table thead th {
+  color: var(--ink);
+  border-bottom: 1px solid var(--ring-line);
 }
-.btn-outline-primary{
-  color: #9ec0ff;
-  border-color: #3a69d9;
-}
-.btn-outline-primary:hover{
-  background:#3a69d9;
-  color:#fff;
+.table-hover tbody tr:hover {
+  background-color: rgba(255,255,255,.06);
 }
 
 /* --- Alerts --- */
-.alert{
-  border: 1px solid rgba(255,255,255,.15);
-  background: rgba(0,0,0,.35);
-  color: #f0f4ff;
-}
-.alert-success{ border-color: rgba(46,204,113,.35); background: rgba(46,204,113,.15); }
-.alert-danger{ border-color: rgba(231,76,60,.35);  background: rgba(231,76,60,.15); }
+.alert-success { background: rgba(60,180,90,.15); color: #c7f5d9; border: 1px solid rgba(60,180,90,.35); }
+.alert-danger  { background: rgba(200,40,60,.15); color: #ffd0d6; border: 1px solid rgba(200,40,60,.35); }
+.alert-warning { background: rgba(240,170,50,.15); color: #ffe9c4; border: 1px solid rgba(240,170,50,.35); }
+.alert-info    { background: rgba(80,160,220,.15); color: #d1ebff; border: 1px solid rgba(80,160,220,.35); }
 
-/* --- Helpers --- */
-.text-accent{ color: var(--accent) !important; }
-
-/* --- Text visibility fixes --- */
-body, p, td, th, label, input, select, textarea {
-  color: #f8f9ff !important;
+/* --- Buttons --- */
+.btn-primary {
+  background: linear-gradient(180deg, #2563eb, #1d4ed8);
+  border-color: #1e40af;
+}
+.btn-primary:hover {
+  background: linear-gradient(180deg, #1e40af, #1d4ed8);
+  border-color: #1e3a8a;
+}
+.btn-outline-primary {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.btn-outline-primary:hover {
+  color: #000;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
-/* Links */
-a, .nav-link {
-  color: #ffd86b !important;   /* gold */
-  font-weight: 600;
+/* --- Links --- */
+a, .nav-link { color: var(--accent) !important; }
+a:hover, .nav-link:hover { color: #fff !important; }
+
+/* --- Forms (dark theme) --- */
+.form-control,
+.form-select,
+input[type="text"],
+input[type="number"],
+input[type="date"],
+select,
+textarea {
+  background: rgba(0,0,0,.45) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255,255,255,.20) !important;
+  box-shadow: 0 0 0 rgba(0,0,0,0);
 }
-a:hover, .nav-link:hover {
-  color: #ffffff !important;   /* white on hover */
+.form-control::placeholder { color: #c8d0e6 !important; }
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 .2rem rgba(255,216,107,.15);
 }
 
-/* Table header text */
-.table thead th {
+/* --- Select / option legibility on dark --- */
+form select,
+.form-select,
+select.form-select {
+  background-color: #0b1422 !important;
+  color: #fff !important;
+  border: 1px solid #445 !important;
+  border-radius: 8px;
+  box-shadow: 0 0 6px rgba(255,255,255,0.08);
+}
+form select option,
+.form-select option {
+  background-color: #0b1422 !important;
   color: #fff !important;
 }
-
-.form-control {
-  background: rgba(0,0,0,0.45) !important;
-  color: #fff !important;
-  border: 1px solid rgba(255,255,255,0.2);
+.form-select option:hover {
+  background-color: #1e2b42 !important;
 }
-.form-control::placeholder {
-  color: #cccccc !important;
+
+/* --- Footer --- */
+footer { border-top: 1px solid var(--ring-line); }
+
+/* --- Utilities --- */
+.shadow-soft { box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+.badge.bg-secondary {
+  background: rgba(255,255,255,.12) !important;
+  color: var(--ink);
+  border: 1px solid var(--ring-line);
 }
