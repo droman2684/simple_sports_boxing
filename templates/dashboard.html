@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-3">Dashboard</h1>
+
+<div class="row g-3 mb-4">
+  <div class="col"><div class="card"><div class="card-body"><div class="h6">Weight Classes</div><div class="h3">{{ classes }}</div></div></div></div>
+  <div class="col"><div class="card"><div class="card-body"><div class="h6">Titles</div><div class="h3">{{ titles }}</div></div></div></div>
+  <div class="col"><div class="card"><div class="card-body"><div class="h6">Boxers</div><div class="h3">{{ boxers }}</div></div></div></div>
+  <div class="col"><div class="card"><div class="card-body"><div class="h6">Cards</div><div class="h3">{{ cards }}</div></div></div></div>
+</div>
+
+<h4 class="mt-4">Current Champions</h4>
+<table class="table table-sm table-striped">
+  <thead><tr><th>Weight</th><th>Body</th><th>Title</th><th>Champion</th><th>Since</th></tr></thead>
+  <tbody>
+  {% for c in champions %}
+    <tr>
+      <td>{{ c.weight_class }}</td>
+      <td>{{ c.body }}</td>
+      <td>{{ c.title_name }}</td>
+      <td>{% if c.boxer_id %}{{ c.first_name }} {{ c.last_name }}{% else %}<em>Vacant</em>{% endif %}</td>
+      <td>{% if c.start_date %}{{ c.start_date }}{% else %}—{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h4 class="mt-4">Recent Bouts</h4>
+<table class="table table-sm table-hover">
+  <thead><tr><th>Date</th><th>Event</th><th>Weight</th><th>Title</th><th>Matchup</th><th>Result</th></tr></thead>
+  <tbody>
+  {% for r in recent %}
+    <tr>
+      <td>{{ r.event_date }}</td>
+      <td>{{ r.event_name }}</td>
+      <td>{{ r.weight_class }}</td>
+      <td>{{ r.title_name or '' }}</td>
+      <td>{{ r.fighter_a }} vs {{ r.fighter_b }}</td>
+      <td>{% if r.winner %}{{ r.winner }}{% if r.method %} ({{ r.method }}{% if r.round %} R{{ r.round }}{% endif %}){% endif %}{% else %}Draw/NC{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

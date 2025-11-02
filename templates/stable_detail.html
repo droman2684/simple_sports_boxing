@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<a class="btn btn-outline-secondary btn-sm mb-3" href="/stables">&larr; Back</a>
+
+<h1 class="mb-1">{{ stable.name }}</h1>
+<div class="text-muted mb-3">
+  HQ: {{ stable.hq_city or '—' }} · Founded: {{ stable.founded_date }} ·
+  {% if stable.is_user_controlled %}User-controlled{% else %}AI{% endif %}
+</div>
+
+<h4 class="mt-3">Roster</h4>
+<table class="table table-sm table-striped">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Weight</th>
+      <th class="text-end">Wins</th>
+      <th class="text-end">Losses</th>
+      <th class="text-end">Draws</th>
+      <th class="text-end">KO</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for x in roster %}
+      <tr>
+        <td>{{ x.first_name }} {{ x.last_name }}</td>
+        <td>{{ x.weight_class }}</td>
+        <td class="text-end">{{ x.wins }}</td>
+        <td class="text-end">{{ x.losses }}</td>
+        <td class="text-end">{{ x.draws }}</td>
+        <td class="text-end">{{ x.ko_wins }}</td>
+      </tr>
+    {% endfor %}
+    {% if roster|length == 0 %}
+      <tr><td colspan="6" class="text-center text-muted">No fighters yet.</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}

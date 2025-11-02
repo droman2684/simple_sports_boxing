@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-3">Create Boxer</h1>
+
+<form method="post" class="row g-3" novalidate>
+
+  <!-- Name Fields -->
+  <div class="col-md-4">
+    <label class="form-label">First Name</label>
+    <input name="first_name" class="form-control {% if errors.first_name %}is-invalid{% endif %}" 
+           value="{{ form.first_name or '' }}">
+    {% if errors.first_name %}<div class="invalid-feedback">{{ errors.first_name }}</div>{% endif %}
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Last Name</label>
+    <input name="last_name" class="form-control {% if errors.last_name %}is-invalid{% endif %}" 
+           value="{{ form.last_name or '' }}">
+    {% if errors.last_name %}<div class="invalid-feedback">{{ errors.last_name }}</div>{% endif %}
+  </div>
+
+  <!-- Weight Class -->
+  <div class="col-md-4">
+    <label class="form-label">Weight Class</label>
+    <select name="weight_class_id" class="form-select {% if errors.weight_class_id %}is-invalid{% endif %}">
+      <option value="">-- choose --</option>
+      {% for wc in wcs %}
+      <option value="{{ wc.weight_class_id }}" 
+        {% if form.weight_class_id == wc.weight_class_id|string %}selected{% endif %}>
+        {{ wc.name }}
+      </option>
+      {% endfor %}
+    </select>
+    {% if errors.weight_class_id %}<div class="invalid-feedback">{{ errors.weight_class_id }}</div>{% endif %}
+  </div>
+
+  <!-- Stable -->
+  <div class="col-md-4">
+    <label class="form-label">Stable</label>
+    <select name="stable_id" class="form-select {% if errors.stable_id %}is-invalid{% endif %}">
+      <option value="">-- choose --</option>
+      {% for s in stables %}
+      <option value="{{ s.stable_id }}"
+        {% if form.stable_id == s.stable_id|string %}selected{% endif %}>
+        {{ s.name }}{% if s.is_user_controlled %} (Mine){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+    {% if errors.stable_id %}<div class="invalid-feedback">{{ errors.stable_id }}</div>{% endif %}
+  </div>
+
+  <div class="col-12"><hr></div>
+
+  <!-- Ratings Macro -->
+  {% macro rating(name, label) -%}
+    <div class="col-md-2">
+      <label class="form-label">{{ label }} (0-100)</label>
+      <input type="number" min="0" max="100" name="{{ name }}" 
+             class="form-control {% if errors[name] %}is-invalid{% endif %}"
+             value="{{ form[name] or 50 }}">
+      {% if errors[name] %}<div class="invalid-feedback">{{ errors[name] }}</div>{% endif %}
+    </div>
+  {%- endmacro %}
+
+  {{ rating('speed','Speed') }}
+  {{ rating('accuracy','Accuracy') }}
+  {{ rating('power','Power') }}
+  {{ rating('defense','Defense') }}
+  {{ rating('stamina','Stamina') }}
+  {{ rating('durability','Durability') }}
+
+  <div class="col-12">
+    <button class="btn btn-dark">Save Boxer</button>
+    <a href="/boxers" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+
+</form>
+{% endblock %}

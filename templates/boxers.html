@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Page Styles Just For Boxers Page -->
+<style>
+  th a { text-decoration: none; color: inherit; }
+  th a .arrow { font-size:.8rem; opacity:.6; margin-left:.15rem; }
+  .table thead th { 
+    position: sticky; 
+    top: 0; 
+    background: #fff; 
+    z-index: 1; 
+  }
+</style>
+
+<h1 class="mb-3">Boxers</h1>
+
+<form class="row g-2 mb-3" method="get">
+  <div class="col-auto">
+    <input class="form-control" type="search" name="q" placeholder="Search name..." value="{{ q }}">
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-dark">Search</button>
+  </div>
+  <div class="col-auto">
+    <a class="btn btn-outline-secondary" href="/boxers">Reset</a>
+  </div>
+  <div class="col-auto">
+    <a class="btn btn-success" href="/boxers/new">+ Add Boxer</a>
+  </div>
+</form>
+
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <table class="table table-hover table-striped mb-0 align-middle">
+      <thead class="table-light">
+        {% set cur_sort = sort or 'last_name' %}
+        {% set cur_dir = direction or 'desc' %}
+        {% macro next_dir(col) -%}{% if cur_sort == col and cur_dir == 'desc' %}desc{% else %}desc{% endif %}{%- endmacro %}
+        {% macro arrow(col) -%}
+          {% if cur_sort == col %}
+            <span class="arrow">{% if cur_dir == 'desc' %}▲{% else %}▼{% endif %}</span>
+          {% endif %}
+        {%- endmacro %}
+        <tr>
+          <th style="width:26%;">
+            <a href="/boxers?sort=last_name&dir={{ next_dir('last_name') }}&q={{ q|urlencode }}">
+              Name {{ arrow('last_name') }}
+            </a>
+          </th>
+          <th style="width:16%;">
+            <a href="/boxers?sort=weight_class&dir={{ next_dir('weight_class') }}&q={{ q|urlencode }}">
+              Weight {{ arrow('weight_class') }}
+            </a>
+          </th>
+          <th>
+            <a href="/boxers?sort=stable&dir={{ next_dir('stable') }}&q={{ q|urlencode }}">
+              Stable {{ arrow('stable') }}
+            </a>
+          </th>
+          <th class="text-end" style="width:8%;">
+            <a href="/boxers?sort=wins&dir={{ next_dir('wins') }}&q={{ q|urlencode }}">
+              Wins {{ arrow('wins') }}
+            </a>
+          </th>
+          <th class="text-end" style="width:8%;">
+            <a href="/boxers?sort=losses&dir={{ next_dir('losses') }}&q={{ q|urlencode }}">
+              Losses {{ arrow('losses') }}
+            </a>
+          </th>
+          <th class="text-end" style="width:8%;">
+            <a href="/boxers?sort=draws&dir={{ next_dir('draws') }}&q={{ q|urlencode }}">
+              Draws {{ arrow('draws') }}
+            </a>
+          </th>
+          <th class="text-end" style="width:8%;">
+            <a href="/boxers?sort=ko_wins&dir={{ next_dir('ko_wins') }}&q={{ q|urlencode }}">
+              KO {{ arrow('ko_wins') }}
+            </a>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for x in rows %}
+        <tr>
+          <td class="text-nowrap">{{ x.first_name }} {{ x.last_name }}</td>
+          <td class="text-nowrap">{{ x.weight_class }}</td>
+          <td class="text-nowrap">
+            {% if x.stable_id %}
+              <a href="/stables/{{ x.stable_id }}">{{ x.stable_name }}</a>
+            {% else %}
+              <em class="text-muted">Free Agent</em>
+            {% endif %}
+          </td>
+          <td class="text-end">{{ x.wins }}</td>
+          <td class="text-end">{{ x.losses }}</td>
+          <td class="text-end">{{ x.draws }}</td>
+          <td class="text-end">{{ x.ko_wins }}</td>
+        </tr>
+        {% endfor %}
+        
+        {% if rows|length == 0 %}
+        <tr>
+          <td colspan="7" class="text-center text-muted py-4">
+            No boxers yet — add fighters to begin!
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

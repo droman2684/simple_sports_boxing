@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-3">Cards</h1>
+
+<table class="table table-sm table-hover">
+<thead>
+  {% set cur_sort = sort or 'event_date' %}
+  {% set cur_dir = direction or 'desc' %}
+  {% macro next_dir(col) -%}
+    {%- if cur_sort == col and cur_dir == 'desc' -%}desc{%- else -%}desc{%- endif -%}
+  {%- endmacro %}
+  {% macro arrow(col) -%}
+    {%- if cur_sort == col -%}
+      {%- if cur_dir == 'desc' -%}▲{%- else -%}▼{%- endif -%}
+    {%- endif -%}
+  {%- endmacro %}
+  <tr>
+    <th><a href="/cards?sort=event_date&dir={{ next_dir('event_date') }}">{{ arrow('event_date') }} Date</a></th>
+    <th><a href="/cards?sort=event_name&dir={{ next_dir('event_name') }}">{{ arrow('event_name') }} Event</a></th>
+    <th><a href="/cards?sort=city&dir={{ next_dir('city') }}">{{ arrow('city') }} Location</a></th>
+    <th class="text-end"><a href="/cards?sort=bout_count&dir={{ next_dir('bout_count') }}">{{ arrow('bout_count') }} Bouts</a></th>
+  </tr>
+</thead>
+
+  <tbody>
+    {% for c in cards %}
+      <tr onclick="location.href='/cards/{{ c.card_id }}'" style="cursor:pointer">
+        <td>{{ c.event_date }}</td>
+        <td>{{ c.event_name }}</td>
+        <td>{{ c.city }}{% if c.country %}, {{ c.country }}{% endif %}</td>
+        <td class="text-end">{{ c.bout_count }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

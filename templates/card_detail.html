@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<a class="btn btn-outline-secondary btn-sm mb-3" href="/cards">&larr; Back</a>
+<h1 class="mb-1">{{ card.event_name }}</h1>
+<div class="text-muted mb-3">
+  {{ card.event_date }} — {{ card.city }}{% if card.country %}, {{ card.country }}{% endif %}
+</div>
+
+<table class="table table-sm table-striped">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Main</th>
+      <th>Weight</th>
+      <th>Title</th>
+      <th>Matchup</th>
+      <th>Result</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for b in bouts %}
+      <tr>
+        <td>{{ b.bout_order }}</td>
+        <td>{% if b.main_event %}★{% endif %}</td>
+        <td>{{ b.weight_class }}</td>
+        <td>{{ b.title_name or '' }}</td>
+        <td>{{ b.fighter_a }} vs {{ b.fighter_b }}</td>
+        <td>
+          {% if b.winner %}
+            {{ b.winner }}
+            {% if b.method %} ({{ b.method }}{% if b.round %} R{{ b.round }}{% endif %}){% endif %}
+          {% else %}
+            Draw/NC
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
