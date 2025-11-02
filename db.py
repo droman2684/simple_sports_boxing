@@ -3,40 +3,46 @@ import os
 import psycopg
 from psycopg.rows import dict_row
 
-# Get DATABASE_URL from environment (Render and local .env)
+# Get DB URL from environment (Render + local .env)
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL not set. Make sure it exists in Render env and/or .env file.")
 
 def get_conn():
     """
-    Return a psycopg3 connection using dict_row so rows act like dicts.
-    Usage:
-        with get_conn() as conn, conn.cursor() as cur:
-            cur.execute("SELECT 1")
+    Create a connection with psycopg3 using dictionary rows.
     """
-    if not DATABASE_URL:
-        raise RuntimeError("DATABASE_URL not found in environment.")
-    
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
 def fetch_all(sql, params=None):
-    """Return multiple rows."""
+    """
+    Fetch many rows from DB.
+    """
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(sql, params or [])
         return cur.fetchall()
 
 def fetch_one(sql, params=None):
-    """Return a single row (or None)."""
+    """
+    Fetch single row.
+    """
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(sql, params or [])
         return cur.fetchone()
 
 def execute(sql, params=None):
-    """Run INSERT/UPDATE/DELETE."""
+    """
+    Execute INSERT/UPDATE/DELETE.
+    Returns number of affected rows.
+    """
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(sql, params or [])
         return cur.rowcount
 
-def executemany(sql, seq_of_params):
-    """Run the same statement many times (batch)."""
+def executemany(sql, param_list):
+    """
+    Execute many operations for batch inserts/updates.
+    """
     with get_conn() as conn, conn.cursor() as cur:
-        cur.executemany(sql, seq_of_params)
+        cur.executemany(sql, param_list)
