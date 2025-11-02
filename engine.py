@@ -80,8 +80,9 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
     pbp: List[Dict[str, Any]] = []
 
     # KO/TKO thresholds tuned for realism (higher = harder to stop)
-    ko_threshold_a = 220.0 * (1.0 - dur_a) + 160.0
-    ko_threshold_b = 220.0 * (1.0 - dur_b) + 160.0
+    # --- FIX 1: Increased thresholds ---
+    ko_threshold_a = 300.0 * (1.0 - dur_a) + 250.0  # Was 220*... + 160.0
+    ko_threshold_b = 300.0 * (1.0 - dur_b) + 250.0  # Was 220*... + 160.0
 
     # Per-round loop
     for rnd in range(1, rounds + 1):
@@ -118,7 +119,8 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
                     damage_b += dmg
 
                     # KD check (big shots or stacked damage)
-                    kd_prob = 0.002 + 0.015 * pow_a + 0.008 * max(0.0, (damage_b - 75.0) / 75.0)
+                    # --- FIX 2: Reduced per-punch probabilities ---
+                    kd_prob = 0.001 + 0.0015 * pow_a + 0.0008 * max(0.0, (damage_b - 75.0) / 75.0)
                     if rng.random() < kd_prob:
                         kd_a += 1
                         kd_total_b += 1
@@ -131,7 +133,8 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
                             return _result_tko(a, b, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes)
 
                     # One-punch KO (rare)
-                    ko_prob = 0.0005 + 0.015 * pow_a + 0.008 * max(0.0, (damage_b - 90.0) / 60.0)
+                    # --- FIX 2: Reduced per-punch probabilities ---
+                    ko_prob = 0.0001 + 0.0015 * pow_a + 0.0008 * max(0.0, (damage_b - 90.0) / 60.0)
                     if rng.random() < ko_prob:
                         notes.append(f"{a.name} scores a knockout blow!")
                         return _result_ko(a, b, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes)
@@ -145,7 +148,8 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
                     dmg = max(0.5, dmg)
                     damage_a += dmg
 
-                    kd_prob = 0.002 + 0.015 * pow_b + 0.008 * max(0.0, (damage_a - 75.0) / 75.0)
+                    # --- FIX 2: Reduced per-punch probabilities ---
+                    kd_prob = 0.001 + 0.0015 * pow_b + 0.0008 * max(0.0, (damage_a - 75.0) / 75.0)
                     if rng.random() < kd_prob:
                         kd_b += 1
                         kd_total_a += 1
@@ -154,7 +158,8 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
                         if damage_a > ko_threshold_a * (0.85 + 0.10 * rng.random()):
                             return _result_tko(b, a, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes)
 
-                    ko_prob = 0.0005 + 0.015 * pow_b + 0.008 * max(0.0, (damage_a - 90.0) / 60.0)
+                    # --- FIX 2: Reduced per-punch probabilities ---
+                    ko_prob = 0.0001 + 0.0015 * pow_b + 0.0008 * max(0.0, (damage_a - 90.0) / 60.0)
                     if rng.random() < ko_prob:
                         notes.append(f"{b.name} scores a knockout blow!")
                         return _result_ko(b, a, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes)
