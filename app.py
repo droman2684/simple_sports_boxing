@@ -284,6 +284,11 @@ def stable_detail(stable_id: int):
     return render_template("stable_detail.html", stable=stable, roster=roster)
 
 # --- CREATE STABLE
+
+@app.get("/stables/new")
+def new_stable():
+    return render_template("new_stable.html")
+
 # app.py
 @app.post("/stables")
 def create_stable():
