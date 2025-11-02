@@ -1,68 +1,40 @@
-# RENDERING TEMPLATES
+import os
 from flask import (
     Flask, render_template, request, abort,
     redirect, url_for, flash
 )
-import psycopg2.extras
-import db        # ✅ add this
-
-
-# --- imports & app creation (keep this tiny for now)
-import os
-from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_cors import CORS
 from dotenv import load_dotenv
+import db  # <-- Central module for all database logic
+
+# --- App Setup ---
 load_dotenv()
-
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
-CORS(app, resources={r"/*": {"origins": ["https://simplesportssim.com","https://www.simplesportssim.com"]}})
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key-change-later")
+CORS(app, resources={r"/*": {"origins": ["https://simplesportssim.com", "https://www.simplesportssim.com"]}})
 
-# --- database connector
-import psycopg2
-import psycopg2.extras
-from dotenv import load_dotenv
-load_dotenv()  # reads .env into process env
-
-print("ENV CHECK:", os.getenv("PGHOST"), os.getenv("PGDATABASE"), os.getenv("PGUSER"))
-
-
-def get_conn():
-    return psycopg2.connect(
-        host=os.getenv("PGHOST", "localhost"),
-        port=os.getenv("PGPORT", "5432"),
-        dbname=os.getenv("PGDATABASE", "boxing_software"),
-        user=os.getenv("PGUSER", "postgres"),
-        password=os.getenv("PGPASSWORD", "")
-    )
-
-app = Flask(__name__)
-app.secret_key = "dev-secret-key-change-later"
-
-# --- DASHBOARD
+# --- DASHBOARD ---
 @app.get("/")
 def dashboard():
-    with get_conn() as conn, conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-        cur.execute("SELECT COUNT(*) FROM boxing.weight_class"); classes = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM boxing.title"); titles = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM boxing.boxer"); boxers = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM boxing.boxing_card"); cards = cur.fetchone()[0]
+    # Refactored to use your db module, just like all other routes
+    classes = db.fetch_one("SELECT COUNT(*) AS count FROM boxing.weight_class")['count']
+    titles = db.fetch_one("SELECT COUNT(*) AS count FROM boxing.title")['count']
+    boxers = db.fetch_one("SELECT COUNT(*) AS count FROM boxing.boxer")['count']
+    cards = db.fetch_one("SELECT COUNT(*) AS count FROM boxing.boxing_card")['count']
 
-        cur.execute("""
-            SELECT title_name, weight_class, body, boxer_id, first_name, last_name, start_date
-            FROM boxing.v_current_champions
-            ORDER BY weight_class, body
-        """)
-        champions = cur.fetchall()
-
-        cur.execute("SELECT * FROM boxing.v_recent_bouts")
-        recent = cur.fetchall()
+    champions = db.fetch_all("""
+        SELECT title_name, weight_class, body, boxer_id, first_name, last_name, start_date
+        FROM boxing.v_current_champions
+        ORDER BY weight_class, body
+    """)
+    
+    recent = db.fetch_all("SELECT * FROM boxing.v_recent_bouts")
 
     return render_template("dashboard.html",
-        classes=classes, titles=titles, boxers=boxers, cards=cards,
-        champions=champions, recent=recent)
+                           classes=classes, titles=titles, boxers=boxers, cards=cards,
+                           champions=champions, recent=recent)
 
-# --- BOXERS
+# --- BOXERS ---
 @app.get("/boxers")
 def boxers():
     q = request.args.get("q", "").strip()
@@ -107,32 +79,23 @@ def boxers():
 
     return render_template("boxers.html", rows=rows, q=q, sort=sort, direction=direction)
 
-    return render_template("boxers.html", rows=rows, q=q, sort=sort, direction=direction)
-
-# --- ADD BOXERS
+# --- ADD BOXERS ---
 @app.get("/boxers/new")
 def boxer_new():
-    # Load weight classes
     wcs = db.fetch_all("""
         SELECT weight_class_id, name
         FROM boxing.weight_class
         ORDER BY display_order, name
     """)
-
-    # Load stables
     stables = db.fetch_all("""
         SELECT stable_id, name, is_user_controlled
         FROM boxing.stable
         ORDER BY name
     """)
-
-    # Default stable (Empire)
     default_stable = next((s for s in stables if s["is_user_controlled"]), None)
-
     form = {
         "stable_id": str(default_stable["stable_id"]) if default_stable else ""
     }
-
     return render_template("boxer_new.html", wcs=wcs, stables=stables, errors={}, form=form)
 
 
@@ -165,7 +128,7 @@ def boxer_create():
         except:
             return False
 
-    for k in ("speed","accuracy","power","defense","stamina","durability"):
+    for k in ("speed", "accuracy", "power", "defense", "stamina", "durability"):
         if not valid_rating(form[k]):
             errors[k] = "Enter 0–100"
 
@@ -208,12 +171,7 @@ def boxer_create():
     flash(f"Added {form['first_name']} {form['last_name']}")
     return redirect(url_for("boxers"))
 
-
-
-
-
-
-# --- CARDS LIST
+# --- CARDS LIST ---
 @app.get("/cards")
 def cards():
     sort = (request.args.get("sort") or "event_date").lower()
@@ -235,8 +193,7 @@ def cards():
     """)
     return render_template("cards.html", cards=rows, sort=sort, direction=direction)
 
-
-# --- CARD DETAILS
+# --- CARD DETAILS ---
 @app.get("/cards/<int:card_id>")
 def card_detail(card_id: int):
     card = db.fetch_one("SELECT * FROM boxing.v_cards_summary WHERE card_id = %s", [card_id])
@@ -267,7 +224,7 @@ def card_detail(card_id: int):
 
     return render_template("card_detail.html", card=card, bouts=bouts)
 
-# --- STABLES
+# --- STABLES ---
 @app.get("/stables")
 def stables():
     rows = db.fetch_all("""
@@ -277,7 +234,7 @@ def stables():
     """)
     return render_template("stables.html", stables=rows)
 
-# --- STABLE DETAILS
+# --- STABLE DETAILS ---
 @app.get("/stables/<int:stable_id>")
 def stable_detail(stable_id: int):
     stable = db.fetch_one("""
@@ -286,7 +243,6 @@ def stable_detail(stable_id: int):
         WHERE stable_id = %s
     """, [stable_id])
     if not stable:
-        from flask import abort
         abort(404)
 
     roster = db.fetch_all("""
@@ -308,16 +264,17 @@ def stable_detail(stable_id: int):
 
     return render_template("stable_detail.html", stable=stable, roster=roster)
 
-# === HEALTHTEST
+# === HEALTHTEST ===
 @app.get("/healthz")
 def healthz():
     try:
+        # db.get_conn() is still a valid function from our db module
         with db.get_conn() as conn, conn.cursor() as cur:
             cur.execute("SELECT 1")
-            return {"status":"ok"}, 200
+            return {"status": "ok"}, 200
     except Exception as e:
-        return {"status":"error","detail":str(e)}, 500
+        return {"status": "error", "detail": str(e)}, 500
 
-
+# --- Run App ---
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
