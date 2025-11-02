@@ -149,12 +149,12 @@ form select,
 .form-select,
 select.form-select {
   background-color: #0b1422;    /* dark background to match theme */
-  color: #fff !important;       /* white text */
+  color: #0b1422 !important;       /* white text */
   border: 1px solid #445;       /* subtle border */
 }
 
 form select option,
 .form-select option {
   background-color: #0b1422 !important;
-  color: #fff !important;
+  color: #0b1422 !important;
 }
