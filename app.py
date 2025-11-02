@@ -13,7 +13,7 @@ import db  # <-- Central module for all database logic
 
 # --- App Setup ---
 load_dotenv()
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key-change-later")
 CORS(app, resources={r"/*": {"origins": ["https://simplesportssim.com", "https://www.simplesportssim.com"]}})
 
