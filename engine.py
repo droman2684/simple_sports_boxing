@@ -79,10 +79,9 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
     judges = [[0, 0], [0, 0], [0, 0]]  # three judges total points [[A,B], ...]
     pbp: List[Dict[str, Any]] = []
 
-    # KO/TKO thresholds tuned for realism (higher = harder to stop)
-    # --- FIX 5: Slightly increased TKO thresholds ---
-    ko_threshold_a = 320.0 * (1.0 - dur_a) + 280.0 # Was 300 / 250
-    ko_threshold_b = 320.0 * (1.0 - dur_b) + 280.0 # Was 300 / 250
+    # --- FIX 7: Increased TKO thresholds (again) ---
+    ko_threshold_a = 350.0 * (1.0 - dur_a) + 300.0 # Was 320 / 280
+    ko_threshold_b = 350.0 * (1.0 - dur_b) + 300.0 # Was 320 / 280
 
     # Per-round loop
     for rnd in range(1, rounds + 1):
@@ -113,8 +112,8 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
                 if rng.random() < hit_chance:
                     landed_a += 1
                     
-                    # --- FIX 6: Drastically Re-tuned Damage Formula ---
-                    dmg = 1.0 + 4.0 * pow_a * (0.6 + 0.8 * rng.random()) - 3.0 * def_b
+                    # --- FIX 8: Final Damage Formula (reduced power scaling) ---
+                    dmg = 1.0 + 3.0 * pow_a * (0.6 + 0.8 * rng.random()) - 3.0 * def_b
                     dmg *= (1.0 + 0.15 * (1.0 - fatigue_a)) * (0.95 + 0.10 * rng.random())
                     dmg = max(0.5, dmg)
                     damage_b += dmg
@@ -141,8 +140,8 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
                 if rng.random() < hit_chance:
                     landed_b += 1
 
-                    # --- FIX 6: Drastically Re-tuned Damage Formula ---
-                    dmg = 1.0 + 4.0 * pow_b * (0.6 + 0.8 * rng.random()) - 3.0 * def_a
+                    # --- FIX 8: Final Damage Formula (reduced power scaling) ---
+                    dmg = 1.0 + 3.0 * pow_b * (0.6 + 0.8 * rng.random()) - 3.0 * def_a
                     dmg *= (1.0 + 0.15 * (1.0 - fatigue_b)) * (0.95 + 0.10 * rng.random())
                     dmg = max(0.5, dmg)
                     damage_a += dmg
@@ -191,6 +190,15 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
         total_landed = max(1, landed_a + landed_b)
         fatigue_a += 0.055 + 0.025 * (landed_b / total_landed)
         fatigue_b += 0.055 + 0.025 * (landed_a / total_landed)
+        
+        # --- FIX 9: (NEW) Fatigue Recovery between rounds based on stamina ---
+        fatigue_recovery_a = 0.01 + 0.03 * sta_a
+        fatigue_recovery_b = 0.01 + 0.03 * sta_b
+        
+        fatigue_a = max(0.0, fatigue_a - fatigue_recovery_a)
+        fatigue_b = max(0.0, fatigue_b - fatigue_recovery_b)
+
+        # Clamp fatigue just in case
         fatigue_a = min(0.9, fatigue_a)
         fatigue_b = min(0.9, fatigue_b)
 
