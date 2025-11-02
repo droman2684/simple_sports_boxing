@@ -232,20 +232,33 @@ def card_detail(card_id: int):
 @app.get("/stables")
 def stables():
     rows = db.fetch_all("""
-        SELECT stable_id, name, founded_date, hq_city, is_user_controlled
+        SELECT
+            stable_id,
+            name,
+            founded_date,
+            hq_city,
+            is_user_controlled
         FROM boxing.stable
-        ORDER BY name
+        ORDER BY name;
     """)
     return render_template("stables.html", stables=rows)
+
 
 # --- STABLE DETAILS ---
 @app.get("/stables/<int:stable_id>")
 def stable_detail(stable_id: int):
     stable = db.fetch_one("""
-        SELECT stable_id, name, founded_date, hq_city, is_user_controlled, created_at
+        SELECT
+            stable_id,
+            name,
+            founded_date,
+            hq_city,
+            is_user_controlled,
+            created_at
         FROM boxing.stable
-        WHERE stable_id = %s
+        WHERE stable_id = %s;
     """, [stable_id])
+
     if not stable:
         abort(404)
 
@@ -255,18 +268,42 @@ def stable_detail(stable_id: int):
             b.first_name,
             b.last_name,
             wc.name AS weight_class,
-            COALESCE(r.wins,0)   AS wins,
-            COALESCE(r.losses,0) AS losses,
-            COALESCE(r.draws,0)  AS draws,
+            COALESCE(r.wins,0)    AS wins,
+            COALESCE(r.losses,0)  AS losses,
+            COALESCE(r.draws,0)   AS draws,
             COALESCE(r.ko_wins,0) AS ko_wins
         FROM boxing.boxer b
-        JOIN boxing.weight_class wc ON wc.weight_class_id = b.weight_class_id
-        LEFT JOIN boxing.v_boxer_records r ON r.boxer_id = b.boxer_id
+        JOIN boxing.weight_class wc
+            ON wc.weight_class_id = b.weight_class_id
+        LEFT JOIN boxing.v_boxer_records r
+            ON r.boxer_id = b.boxer_id
         WHERE b.stable_id = %s
-        ORDER BY b.last_name, b.first_name
+        ORDER BY b.last_name, b.first_name;
     """, [stable_id])
 
     return render_template("stable_detail.html", stable=stable, roster=roster)
+
+# --- CREATE STABLE
+# app.py
+@app.post("/stables")
+def create_stable():
+    name = request.form.get("name", "").strip()
+    founded_date = request.form.get("founded_date") or None
+    hq_city = request.form.get("hq_city") or None
+    is_user_controlled = bool(request.form.get("is_user_controlled"))
+
+    if not name:
+        flash("Stable name is required.", "error")
+        return redirect(url_for("stables"))
+
+    db.execute("""
+        INSERT INTO boxing.stable (name, founded_date, is_user_controlled, hq_city)
+        VALUES (%s, %s, %s, %s);
+    """, (name, founded_date, is_user_controlled, hq_city))
+
+    flash(f'Stable "{name}" created.', "success")
+    return redirect(url_for("stables"))
+
 
 # === HEALTHTEST ===
 @app.get("/healthz")
