@@ -80,9 +80,9 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
     pbp: List[Dict[str, Any]] = []
 
     # KO/TKO thresholds tuned for realism (higher = harder to stop)
-    # --- FIX 1: Increased thresholds (from first fix) ---
-    ko_threshold_a = 300.0 * (1.0 - dur_a) + 250.0
-    ko_threshold_b = 300.0 * (1.0 - dur_b) + 250.0
+    # --- FIX 5: Slightly increased TKO thresholds ---
+    ko_threshold_a = 320.0 * (1.0 - dur_a) + 280.0 # Was 300 / 250
+    ko_threshold_b = 320.0 * (1.0 - dur_b) + 280.0 # Was 300 / 250
 
     # Per-round loop
     for rnd in range(1, rounds + 1):
@@ -113,8 +113,8 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
                 if rng.random() < hit_chance:
                     landed_a += 1
                     
-                    # --- FIX 3: Re-tuned Damage Formula ---
-                    dmg = 1.5 + 6.0 * pow_a * (0.6 + 0.8 * rng.random()) - 3.0 * def_b
+                    # --- FIX 6: Drastically Re-tuned Damage Formula ---
+                    dmg = 1.0 + 4.0 * pow_a * (0.6 + 0.8 * rng.random()) - 3.0 * def_b
                     dmg *= (1.0 + 0.15 * (1.0 - fatigue_a)) * (0.95 + 0.10 * rng.random())
                     dmg = max(0.5, dmg)
                     damage_b += dmg
@@ -141,8 +141,8 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
                 if rng.random() < hit_chance:
                     landed_b += 1
 
-                    # --- FIX 3: Re-tuned Damage Formula ---
-                    dmg = 1.5 + 6.0 * pow_b * (0.6 + 0.8 * rng.random()) - 3.0 * def_a
+                    # --- FIX 6: Drastically Re-tuned Damage Formula ---
+                    dmg = 1.0 + 4.0 * pow_b * (0.6 + 0.8 * rng.random()) - 3.0 * def_a
                     dmg *= (1.0 + 0.15 * (1.0 - fatigue_b)) * (0.95 + 0.10 * rng.random())
                     dmg = max(0.5, dmg)
                     damage_a += dmg
@@ -187,7 +187,7 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
             "notes": notes,
         })
 
-        # --- FIX 4: Increased Fatigue ---
+        # --- FIX 4: Increased Fatigue (from second fix) ---
         total_landed = max(1, landed_a + landed_b)
         fatigue_a += 0.055 + 0.025 * (landed_b / total_landed)
         fatigue_b += 0.055 + 0.025 * (landed_a / total_landed)
