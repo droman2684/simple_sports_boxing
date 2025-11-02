@@ -9,6 +9,9 @@ from flask import (
 from flask_cors import CORS
 from dotenv import load_dotenv
 
+from engine import Fighter, simulate_fight
+
+
 # Central DB helpers (must expose: get_conn, fetch_one, fetch_all, execute)
 import db
 
@@ -333,6 +336,158 @@ def create_stable():
 
     flash(f'Stable "{name}" created.', "success")
     return redirect(url_for("stables"))
+
+# --- FIGHT SIMULATION (JSON) ---
+from engine import Fighter, simulate_fight
+
+@app.post("/sim/fight")
+def sim_fight():
+    """
+    POST JSON:
+    {
+      "boxer_a_id": 1,
+      "boxer_b_id": 2,
+      "rounds": 12,
+      "seed": 42   # optional for reproducibility
+    }
+    """
+    data = request.get_json(force=True) or {}
+    a_id = int(data.get("boxer_a_id"))
+    b_id = int(data.get("boxer_b_id"))
+    rounds = int(data.get("rounds", 12))
+    seed = data.get("seed")
+
+    # Fetch fighters + ratings from DB
+    row_a = db.fetch_one("""
+        SELECT bx.boxer_id,
+               bx.first_name || ' ' || bx.last_name AS name,
+               r.speed, r.accuracy, r.power, r.defense, r.stamina, r.durability
+        FROM boxing.boxer bx
+        LEFT JOIN boxing.boxer_ratings r ON r.boxer_id = bx.boxer_id
+        WHERE bx.boxer_id = %s
+    """, [a_id])
+
+    row_b = db.fetch_one("""
+        SELECT bx.boxer_id,
+               bx.first_name || ' ' || bx.last_name AS name,
+               r.speed, r.accuracy, r.power, r.defense, r.stamina, r.durability
+        FROM boxing.boxer bx
+        LEFT JOIN boxing.boxer_ratings r ON r.boxer_id = bx.boxer_id
+        WHERE bx.boxer_id = %s
+    """, [b_id])
+
+    if not row_a or not row_b:
+        abort(400, "Invalid boxer ids")
+
+    def to_int(x, default=50):
+        try: return int(x)
+        except: return default
+
+    A = Fighter(
+        boxer_id=row_a["boxer_id"], name=row_a["name"],
+        speed=to_int(row_a.get("speed", 50)),
+        accuracy=to_int(row_a.get("accuracy", 50)),
+        power=to_int(row_a.get("power", 50)),
+        defense=to_int(row_a.get("defense", 50)),
+        stamina=to_int(row_a.get("stamina", 50)),
+        durability=to_int(row_a.get("durability", 50)),
+    )
+    B = Fighter(
+        boxer_id=row_b["boxer_id"], name=row_b["name"],
+        speed=to_int(row_b.get("speed", 50)),
+        accuracy=to_int(row_b.get("accuracy", 50)),
+        power=to_int(row_b.get("power", 50)),
+        defense=to_int(row_b.get("defense", 50)),
+        stamina=to_int(row_b.get("stamina", 50)),
+        durability=to_int(row_b.get("durability", 50)),
+    )
+
+    result = simulate_fight(A, B, rounds=rounds, seed=seed)
+    return result, 200
+
+# --- EXHIBITIONS: NEW (form to pick fighters) ---
+@app.get("/exhibitions/new")
+def exhibition_new():
+    boxers = db.fetch_all("""
+        SELECT
+          b.boxer_id,
+          (b.first_name || ' ' || b.last_name) AS name,
+          wc.name AS weight_class
+        FROM boxing.boxer b
+        JOIN boxing.weight_class wc ON wc.weight_class_id = b.weight_class_id
+        ORDER BY b.last_name, b.first_name
+    """)
+    return render_template("exhibition_new.html", boxers=boxers)
+
+
+# --- EXHIBITIONS: SIMULATE (POST -> runs engine, shows result) ---
+@app.post("/exhibitions/simulate")
+def exhibition_simulate():
+    a_id = int(request.form.get("boxer_a_id"))
+    b_id = int(request.form.get("boxer_b_id"))
+    rounds = int(request.form.get("rounds", 12))
+    seed = request.form.get("seed")
+    seed = int(seed) if seed not in (None, "",) else None
+
+    if a_id == b_id:
+        flash("Pick two different fighters.", "error")
+        return redirect(url_for("exhibition_new"))
+
+    # Fetch both fighters + ratings
+    row_a = db.fetch_one("""
+        SELECT bx.boxer_id,
+               bx.first_name || ' ' || bx.last_name AS name,
+               COALESCE(r.speed,50) AS speed,
+               COALESCE(r.accuracy,50) AS accuracy,
+               COALESCE(r.power,50) AS power,
+               COALESCE(r.defense,50) AS defense,
+               COALESCE(r.stamina,50) AS stamina,
+               COALESCE(r.durability,50) AS durability
+        FROM boxing.boxer bx
+        LEFT JOIN boxing.boxer_ratings r ON r.boxer_id = bx.boxer_id
+        WHERE bx.boxer_id = %s
+    """, [a_id])
+
+    row_b = db.fetch_one("""
+        SELECT bx.boxer_id,
+               bx.first_name || ' ' || bx.last_name AS name,
+               COALESCE(r.speed,50) AS speed,
+               COALESCE(r.accuracy,50) AS accuracy,
+               COALESCE(r.power,50) AS power,
+               COALESCE(r.defense,50) AS defense,
+               COALESCE(r.stamina,50) AS stamina,
+               COALESCE(r.durability,50) AS durability
+        FROM boxing.boxer bx
+        LEFT JOIN boxing.boxer_ratings r ON r.boxer_id = bx.boxer_id
+        WHERE bx.boxer_id = %s
+    """, [b_id])
+
+    if not row_a or not row_b:
+        flash("Invalid fighter selection.", "error")
+        return redirect(url_for("exhibition_new"))
+
+    A = Fighter(
+        boxer_id=row_a["boxer_id"], name=row_a["name"],
+        speed=int(row_a["speed"]), accuracy=int(row_a["accuracy"]),
+        power=int(row_a["power"]), defense=int(row_a["defense"]),
+        stamina=int(row_a["stamina"]), durability=int(row_a["durability"])
+    )
+    B = Fighter(
+        boxer_id=row_b["boxer_id"], name=row_b["name"],
+        speed=int(row_b["speed"]), accuracy=int(row_b["accuracy"]),
+        power=int(row_b["power"]), defense=int(row_b["defense"]),
+        stamina=int(row_b["stamina"]), durability=int(row_b["durability"])
+    )
+
+    sim = simulate_fight(A, B, rounds=rounds, seed=seed)
+
+    # Pass data to a result page
+    return render_template(
+        "exhibition_result.html",
+        a=A, b=B, rounds=rounds, seed=seed, sim=sim
+    )
+
+
 
 # -----------------------------------------------------------------------------
 # Health / Static Debug (remove after verifying)

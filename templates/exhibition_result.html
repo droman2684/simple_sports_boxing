@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-3">Exhibition Result</h1>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <h4 class="mb-1">{{ a.name }}</h4>
+        <div class="text-muted small">Red Corner (A)</div>
+      </div>
+      <div class="col-md-6">
+        <h4 class="mb-1">{{ b.name }}</h4>
+        <div class="text-muted small">Blue Corner (B)</div>
+      </div>
+    </div>
+
+    <hr>
+
+    {% if sim.result.type in ["KO", "TKO"] %}
+      <h3 class="text-accent mb-0">
+        {{ sim.winner.name }} wins by {{ sim.result.type }} in Round {{ sim.result.round }}
+      </h3>
+    {% elif sim.result.type == "Decision" %}
+      <h3 class="text-accent mb-1">
+        {{ sim.result.verdict }}
+      </h3>
+      <div>Cards:
+        {% for c in sim.result.cards %}
+          <span class="badge bg-secondary me-1">{{ c }}</span>
+        {% endfor %}
+      </div>
+    {% else %}
+      <h3 class="text-accent">Result: {{ sim.result.type }}</h3>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">Totals</div>
+      <div class="card-body">
+        <ul class="mb-0">
+          <li>Damage to {{ a.name }}: <strong>{{ sim.totals.damage_to_a if sim.totals else "-" }}</strong></li>
+          <li>Damage to {{ b.name }}: <strong>{{ sim.totals.damage_to_b if sim.totals else "-" }}</strong></li>
+          <li>Knockdowns suffered by {{ a.name }}: <strong>{{ sim.totals.kd_suffered_a if sim.totals else "-" }}</strong></li>
+          <li>Knockdowns suffered by {{ b.name }}: <strong>{{ sim.totals.kd_suffered_b if sim.totals else "-" }}</strong></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">Details</div>
+      <div class="card-body">
+        <div>Rounds: <strong>{{ rounds }}</strong></div>
+        {% if seed %}<div>Seed: <strong>{{ seed }}</strong></div>{% endif %}
+        {% if sim.winner %}
+          <div>Winner: <strong>{{ sim.winner.name }}</strong></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-header">Round by Round</div>
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Rnd</th>
+          <th>{{ a.name }} Landed</th>
+          <th>{{ b.name }} Landed</th>
+          <th>KD (A)</th>
+          <th>KD (B)</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in sim.play_by_play %}
+          <tr>
+            <td>{{ r.round }}</td>
+            <td>{{ r.landed_a }}</td>
+            <td>{{ r.landed_b }}</td>
+            <td>{{ r.kd_a }}</td>
+            <td>{{ r.kd_b }}</td>
+            <td>
+              {% for n in r.notes %}
+                <div>{{ n }}</div>
+              {% endfor %}
+              {% if r.stoppage %}<div><strong>Stoppage</strong></div>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="mt-4 d-flex gap-2">
+  <a class="btn btn-primary" href="{{ url_for('exhibition_new') }}">Run Another</a>
+  <form action="{{ url_for('exhibition_simulate') }}" method="post">
+    <input type="hidden" name="boxer_a_id" value="{{ b.boxer_id }}">
+    <input type="hidden" name="boxer_b_id" value="{{ a.boxer_id }}">
+    <input type="hidden" name="rounds" value="{{ rounds }}">
+    {% if seed is not none %}<input type="hidden" name="seed" value="{{ seed }}">{% endif %}
+    <button class="btn btn-outline-secondary">Swap Corners & Re-run</button>
+  </form>
+</div>
+{% endblock %}

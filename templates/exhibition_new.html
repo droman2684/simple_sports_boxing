@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-4">Exhibition Match</h1>
+
+<form action="{{ url_for('exhibition_simulate') }}" method="post" class="row g-3">
+
+  <div class="col-md-6">
+    <label class="form-label">Red Corner (A)</label>
+    <select name="boxer_a_id" class="form-select" required>
+      <option value="" disabled selected>Choose fighter…</option>
+      {% for b in boxers %}
+        <option value="{{ b.boxer_id }}">
+          {{ b.name }} — {{ b.weight_class }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-6">
+    <label class="form-label">Blue Corner (B)</label>
+    <select name="boxer_b_id" class="form-select" required>
+      <option value="" disabled selected>Choose fighter…</option>
+      {% for b in boxers %}
+        <option value="{{ b.boxer_id }}">
+          {{ b.name }} — {{ b.weight_class }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Rounds</label>
+    <select name="rounds" class="form-select">
+      <option value="4">4</option>
+      <option value="6">6</option>
+      <option value="8">8</option>
+      <option value="10">10</option>
+      <option value="12" selected>12</option>
+    </select>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Seed (optional)</label>
+    <input type="number" name="seed" class="form-control" placeholder="e.g., 42 for reproducible result">
+  </div>
+
+  <div class="col-12">
+    <button class="btn btn-primary">Simulate</button>
+    <a class="btn btn-secondary" href="{{ url_for('dashboard') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}
