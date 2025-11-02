@@ -87,7 +87,7 @@
           <td class="text-nowrap">{{ x.weight_class }}</td>
           <td class="text-nowrap">
             {% if x.stable_id %}
-              <a href="/stables/{{ x.stable_id }}">{{ x.stable_name }}</a>
+              <a class="nav-link" href="/stables/{{ x.stable_id }}">{{ x.stable_name }}</a>
             {% else %}
               <em class="text-muted">Free Agent</em>
             {% endif %}
