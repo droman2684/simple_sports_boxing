@@ -82,8 +82,8 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
 
     # KO/TKO thresholds: scale by durability
     # Higher durability -> higher threshold (harder to stop)
-    ko_threshold_a = 120.0 * (1.1 - dur_a) + 60.0   # damage at which A may be stopped
-    ko_threshold_b = 120.0 * (1.1 - dur_b) + 60.0
+    ko_threshold_a = 220.0 * (1.0 - dur_a) + 160.0
+    ko_threshold_b = 220.0 * (1.0 - dur_b) + 160.0
 
     # Per-round loop
     for rnd in range(1, rounds+1):
@@ -115,16 +115,16 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
                     damage_b += dmg
 
                     # KD check (big shots or stacked damage)
-                    kd_prob = 0.005 + 0.020*pow_a + 0.010*max(0.0, (damage_b - 45.0)/50.0)
+                    kd_prob = 0.002 + 0.015*pow_a + 0.008*max(0.0, (damage_b - 75.0)/75.0)
                     if rng.random() < kd_prob:
                         kd_a += 1
                         kd_total_b += 1  # B got knocked down
                         notes.append(f"{a.name} scores a knockdown!")
                         # Extra damage surge on KD
-                        damage_b += 6 + 6*pow_a
+                        damage_b += 3 + 4*pow_a
 
                         # TKO chance after KD if damage high
-                        if damage_b > ko_threshold_b * (0.70 + 0.15*rng.random()):
+                       if damage_b > ko_threshold_b * (0.85 + 0.10*rng.random()):
                             return _result_tko(a, b, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes)
 
                     # One-punch KO (rare)
@@ -147,8 +147,8 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
                         kd_b += 1
                         kd_total_a += 1
                         notes.append(f"{b.name} scores a knockdown!")
-                        damage_a += 6 + 6*pow_b
-                        if damage_a > ko_threshold_a * (0.70 + 0.15*rng.random()):
+                        damage_a += 3 + 4*pow_b
+                        if damage_a > ko_threshold_a * (0.85 + 0.10*rng.random()):
                             return _result_tko(b, a, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes)
 
                     ko_prob = 0.0005 + 0.015*pow_b + 0.008*max(0.0, (damage_a - 90.0)/60.0)
@@ -181,8 +181,8 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
         })
 
         # Fatigue increases (harder rounds fatigue more)
-        fatigue_a += 0.05 + 0.02*(landed_b / max(1, landed_a+landed_b))
-        fatigue_b += 0.05 + 0.02*(landed_a / max(1, landed_a+landed_b))
+        fatigue_a += 0.035 + 0.015*(landed_b / max(1, landed_a+landed_b))
+        fatigue_b += 0.035 + 0.015*(landed_a / max(1, landed_a+landed_b))
         fatigue_a = min(0.9, fatigue_a)
         fatigue_b = min(0.9, fatigue_b)
 
