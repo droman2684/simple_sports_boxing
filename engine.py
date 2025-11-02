@@ -127,13 +127,15 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
                         damage_b += 3 + 4 * pow_a
 
                         if damage_b > ko_threshold_b * (0.85 + 0.10 * rng.random()):
-                            return _result_tko(a, b, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes)
+                            # --- BUG FIX: Pass 'rng' ---
+                            return _result_tko(a, b, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes, rng)
 
                     # --- FIX 2: Reduced per-punch probabilities (from first fix) ---
                     ko_prob = 0.0001 + 0.0015 * pow_a + 0.0008 * max(0.0, (damage_b - 90.0) / 60.0)
                     if rng.random() < ko_prob:
                         notes.append(f"{a.name} scores a knockout blow!")
-                        return _result_ko(a, b, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes)
+                        # --- BUG FIX: Pass 'rng' ---
+                        return _result_ko(a, b, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes, rng)
             else:
                 hit_chance = _sigmoid(2.25 * ((acc_b - def_a) + 0.15 * (sta_b - fatigue_b) - 0.10 * (fatigue_a)))
                 hit_chance = max(0.15, min(0.75, hit_chance))
@@ -154,21 +156,25 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
                         notes.append(f"{b.name} scores a knockdown!")
                         damage_a += 3 + 4 * pow_b
                         if damage_a > ko_threshold_a * (0.85 + 0.10 * rng.random()):
-                            return _result_tko(b, a, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes)
+                            # --- BUG FIX: Pass 'rng' ---
+                            return _result_tko(b, a, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes, rng)
 
                     # --- FIX 2: Reduced per-punch probabilities (from first fix) ---
                     ko_prob = 0.0001 + 0.0015 * pow_b + 0.0008 * max(0.0, (damage_a - 90.0) / 60.0)
                     if rng.random() < ko_prob:
                         notes.append(f"{b.name} scores a knockout blow!")
-                        return _result_ko(b, a, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes)
+                        # --- BUG FIX: Pass 'rng' ---
+                        return _result_ko(b, a, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes, rng)
 
         # Between-round TKO if someone took a beating
         if damage_a > ko_threshold_a * (0.95 + 0.10 * rng.random()):
             notes.append(f"Corner stops it for {a.name}.")
-            return _result_tko(b, a, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes)
+            # --- BUG FIX: Pass 'rng' ---
+            return _result_tko(b, a, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes, rng)
         if damage_b > ko_threshold_b * (0.95 + 0.10 * rng.random()):
             notes.append(f"Corner stops it for {b.name}.")
-            return _result_tko(a, b, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes)
+            # --- BUG FIX: Pass 'rng' ---
+            return _result_tko(a, b, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes, rng)
 
         # --- NEW: Capture per-judge scores for this round ---
         round_score_cards: List[str] = []
@@ -249,20 +255,18 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
 
 # -------- Result builders --------
 
+# --- BUG FIX: Added 'rng' to function definition ---
 def _result_tko(winner: Fighter, loser: Fighter, rnd: int,
                 pbp: List[Dict[str, Any]],
                 landed_a: int, landed_b: int, kd_a: int, kd_b: int,
-                judges, notes: List[str]) -> Dict[str, Any]:
+                judges, notes: List[str], rng: random.Random) -> Dict[str, Any]:
     
     # --- ADDITION: Score the final, interrupted round ---
-    # We still need to add the final round's PBP entry
-    # even though the fight is over.
     round_score_cards: List[str] = []
     for j in range(3):
+        # --- BUG FIX: Use the passed 'rng' object ---
         bias = (rng.random() - 0.5) * 0.4
         a_pts, b_pts = _score_round(landed_a, landed_b, kd_a, kd_b, judge_bias=bias)
-        # Note: We don't add these to the final 'judges' total
-        # because the fight didn't go to decision.
         round_score_cards.append(f"{int(a_pts)}-{int(b_pts)}")
 
     pbp.append({
@@ -282,14 +286,16 @@ def _result_tko(winner: Fighter, loser: Fighter, rnd: int,
         "play_by_play": pbp
     }
 
+# --- BUG FIX: Added 'rng' to function definition ---
 def _result_ko(winner: Fighter, loser: Fighter, rnd: int,
                pbp: List[Dict[str, Any]],
                landed_a: int, landed_b: int, kd_a: int, kd_b: int,
-               judges, notes: List[str]) -> Dict[str, Any]:
+               judges, notes: List[str], rng: random.Random) -> Dict[str, Any]:
 
     # --- ADDITION: Score the final, interrupted round ---
     round_score_cards: List[str] = []
     for j in range(3):
+        # --- BUG FIX: Use the passed 'rng' object ---
         bias = (rng.random() - 0.5) * 0.4
         a_pts, b_pts = _score_round(landed_a, landed_b, kd_a, kd_b, judge_bias=bias)
         round_score_cards.append(f"{int(a_pts)}-{int(b_pts)}")
