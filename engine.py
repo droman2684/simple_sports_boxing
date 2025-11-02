@@ -170,12 +170,17 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
             notes.append(f"Corner stops it for {b.name}.")
             return _result_tko(a, b, rnd, pbp, landed_a, landed_b, kd_a, kd_b, judges, notes)
 
+        # --- NEW: Capture per-judge scores for this round ---
+        round_score_cards: List[str] = []
+
         # Judges score the round (three judges with tiny noise)
         for j in range(3):
             bias = (rng.random() - 0.5) * 0.4  # small lean
             a_pts, b_pts = _score_round(landed_a, landed_b, kd_a, kd_b, judge_bias=bias)
             judges[j][0] += a_pts
             judges[j][1] += b_pts
+            # --- NEW: Add this round's score string to the list ---
+            round_score_cards.append(f"{int(a_pts)}-{int(b_pts)}")
 
         pbp.append({
             "round": rnd,
@@ -184,6 +189,7 @@ def simulate_fight(a: Fighter, b: Fighter, rounds: int = 12, seed: Optional[int]
             "kd_a": kd_a,
             "kd_b": kd_b,
             "notes": notes,
+            "judge_scores": round_score_cards  # --- ADDED: "judge_scores" key ---
         })
 
         # --- FIX 4: Increased Fatigue (from second fix) ---
@@ -247,10 +253,27 @@ def _result_tko(winner: Fighter, loser: Fighter, rnd: int,
                 pbp: List[Dict[str, Any]],
                 landed_a: int, landed_b: int, kd_a: int, kd_b: int,
                 judges, notes: List[str]) -> Dict[str, Any]:
+    
+    # --- ADDITION: Score the final, interrupted round ---
+    # We still need to add the final round's PBP entry
+    # even though the fight is over.
+    round_score_cards: List[str] = []
+    for j in range(3):
+        bias = (rng.random() - 0.5) * 0.4
+        a_pts, b_pts = _score_round(landed_a, landed_b, kd_a, kd_b, judge_bias=bias)
+        # Note: We don't add these to the final 'judges' total
+        # because the fight didn't go to decision.
+        round_score_cards.append(f"{int(a_pts)}-{int(b_pts)}")
+
     pbp.append({
         "round": rnd,
         "stoppage": True,
-        "notes": notes + [f"Referee stops the fight. {winner.name} wins by TKO."]
+        "landed_a": landed_a,
+        "landed_b": landed_b,
+        "kd_a": kd_a,
+        "kd_b": kd_b,
+        "notes": notes + [f"Referee stops the fight. {winner.name} wins by TKO."],
+        "judge_scores": round_score_cards
     })
     return {
         "result": {"type": "TKO", "round": rnd},
@@ -263,10 +286,23 @@ def _result_ko(winner: Fighter, loser: Fighter, rnd: int,
                pbp: List[Dict[str, Any]],
                landed_a: int, landed_b: int, kd_a: int, kd_b: int,
                judges, notes: List[str]) -> Dict[str, Any]:
+
+    # --- ADDITION: Score the final, interrupted round ---
+    round_score_cards: List[str] = []
+    for j in range(3):
+        bias = (rng.random() - 0.5) * 0.4
+        a_pts, b_pts = _score_round(landed_a, landed_b, kd_a, kd_b, judge_bias=bias)
+        round_score_cards.append(f"{int(a_pts)}-{int(b_pts)}")
+        
     pbp.append({
         "round": rnd,
         "stoppage": True,
-        "notes": notes + [f"{winner.name} wins by KO!"]
+        "landed_a": landed_a,
+        "landed_b": landed_b,
+        "kd_a": kd_a,
+        "kd_b": kd_b,
+        "notes": notes + [f"{winner.name} wins by KO!"],
+        "judge_scores": round_score_cards
     })
     return {
         "result": {"type": "KO", "round": rnd},
