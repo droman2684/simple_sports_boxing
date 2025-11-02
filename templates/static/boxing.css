@@ -115,3 +115,31 @@
 
 /* --- Helpers --- */
 .text-accent{ color: var(--accent) !important; }
+
+/* --- Text visibility fixes --- */
+body, p, td, th, label, input, select, textarea {
+  color: #f8f9ff !important;
+}
+
+/* Links */
+a, .nav-link {
+  color: #ffd86b !important;   /* gold */
+  font-weight: 600;
+}
+a:hover, .nav-link:hover {
+  color: #ffffff !important;   /* white on hover */
+}
+
+/* Table header text */
+.table thead th {
+  color: #fff !important;
+}
+
+.form-control {
+  background: rgba(0,0,0,0.45) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+.form-control::placeholder {
+  color: #cccccc !important;
+}
