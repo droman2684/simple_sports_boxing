@@ -1,13 +1,15 @@
+# db.py (CORRECTED)
+
 import os
 import psycopg
-from psycopg.rows import dict_row  # This replaces DictCursor
+from psycopg.rows import dict_row
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Get the database URL from the environment.
-# Render provides this automatically.
-DATABASE_URL = os.getenv("postgresql://neondb_owner:npg_is8yVxob3vUp@ep-wild-dust-ah7i6fep-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require")
+# THIS IS THE FIX:
+# Look for the *variable* named "DATABASE_URL"
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_conn():
     """
@@ -24,12 +26,11 @@ def get_conn():
             f"port={os.getenv('PGPORT', '5432')} "
             f"dbname={os.getenv('PGDATABASE', 'boxing_software')} "
             f"user={os.getenv('PGUSER', 'postgres')} "
-            f"password={os.getenv('PGPASSWORD', 'Aviators2025!!')}"
+            f"password={os.getenv('PGPASSWORD')}" # Get local pw from .env
         )
 
     return psycopg.connect(conn_string, row_factory=dict_row)
 
-# --- No changes needed to the functions below ---
 
 def fetch_all(sql, params=None):
     """
@@ -56,4 +57,3 @@ def execute(sql, params=None):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(sql, params)
-        # The 'with get_conn()' block handles the commit automatically

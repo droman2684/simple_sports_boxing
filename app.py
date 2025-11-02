@@ -1,4 +1,10 @@
 import os
+
+
+# --- ADD THIS LINE ---
+print(f"--- [APP_START] My DATABASE_URL is: {os.getenv('DATABASE_URL')} ---")
+
+
 from flask import (
     Flask, render_template, request, abort,
     redirect, url_for, flash
