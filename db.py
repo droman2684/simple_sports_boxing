@@ -7,7 +7,7 @@ load_dotenv()
 
 # Get the database URL from the environment.
 # Render provides this automatically.
-DATABASE_URL = os.getenv("postgresql://neondb_owner:npg_is8yVxob3vUp@ep-wild-dust-ah7i6fep-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
+DATABASE_URL = os.getenv("postgresql://neondb_owner:npg_is8yVxob3vUp@ep-wild-dust-ah7i6fep-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require")
 
 def get_conn():
     """
