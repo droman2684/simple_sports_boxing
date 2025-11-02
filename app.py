@@ -1,44 +1,80 @@
+# app.py
 import os
-
-
-
+from pathlib import Path
 
 from flask import (
     Flask, render_template, request, abort,
-    redirect, url_for, flash
+    redirect, url_for, flash, jsonify, send_from_directory
 )
 from flask_cors import CORS
 from dotenv import load_dotenv
-import db  # <-- Central module for all database logic
 
-# --- App Setup ---
+# Central DB helpers (must expose: get_conn, fetch_one, fetch_all, execute)
+import db
+
+# -----------------------------------------------------------------------------
+# App Setup (absolute paths = bulletproof static + templates)
+# -----------------------------------------------------------------------------
+BASE_DIR = Path(__file__).resolve().parent
 load_dotenv()
-app = Flask(__name__, static_folder="static", static_url_path="/static")
-app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key-change-later")
-CORS(app, resources={r"/*": {"origins": ["https://simplesportssim.com", "https://www.simplesportssim.com"]}})
 
-# --- DASHBOARD ---
+app = Flask(
+    __name__,
+    static_folder=str(BASE_DIR / "static"),
+    static_url_path="/static",
+    template_folder=str(BASE_DIR / "templates"),
+)
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key-change-later")
+
+# Optional CORS (kept per your snippet). If you don't need it, remove these 2 lines.
+CORS(app, resources={r"/*": {
+    "origins": ["https://simplesportssim.com", "https://www.simplesportssim.com"]
+}})
+
+# In debug: kill static caching so CSS changes show immediately
+if app.debug or os.getenv("FLASK_ENV") == "development":
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
+
+# Cache-busting helper you can use from templates: {{ asset('boxing.css') }}
+@app.context_processor
+def _inject_asset_helper():
+    def asset(filename: str):
+        try:
+            fp = BASE_DIR / "static" / filename
+            v = int(fp.stat().st_mtime)
+        except Exception:
+            v = 1
+        return url_for("static", filename=filename, v=v)
+    return {"asset": asset}
+
+# -----------------------------------------------------------------------------
+# DASHBOARD
+# -----------------------------------------------------------------------------
 @app.get("/")
 def dashboard():
-    # Refactored to use your db module, just like all other routes
-    classes = db.fetch_one("SELECT COUNT(*) AS count FROM boxing.weight_class")['count']
-    titles = db.fetch_one("SELECT COUNT(*) AS count FROM boxing.title")['count']
-    boxers = db.fetch_one("SELECT COUNT(*) AS count FROM boxing.boxer")['count']
-    cards = db.fetch_one("SELECT COUNT(*) AS count FROM boxing.boxing_card")['count']
+    classes = db.fetch_one("SELECT COUNT(*) AS count FROM boxing.weight_class")["count"]
+    titles  = db.fetch_one("SELECT COUNT(*) AS count FROM boxing.title")["count"]
+    boxers  = db.fetch_one("SELECT COUNT(*) AS count FROM boxing.boxer")["count"]
+    cards   = db.fetch_one("SELECT COUNT(*) AS count FROM boxing.boxing_card")["count"]
 
     champions = db.fetch_all("""
         SELECT title_name, weight_class, body, boxer_id, first_name, last_name, start_date
         FROM boxing.v_current_champions
         ORDER BY weight_class, body
     """)
-    
+
     recent = db.fetch_all("SELECT * FROM boxing.v_recent_bouts")
 
-    return render_template("dashboard.html",
-                           classes=classes, titles=titles, boxers=boxers, cards=cards,
-                           champions=champions, recent=recent)
+    return render_template(
+        "dashboard.html",
+        classes=classes, titles=titles, boxers=boxers, cards=cards,
+        champions=champions, recent=recent
+    )
 
-# --- BOXERS ---
+# -----------------------------------------------------------------------------
+# BOXERS
+# -----------------------------------------------------------------------------
 @app.get("/boxers")
 def boxers():
     q = request.args.get("q", "").strip()
@@ -53,7 +89,7 @@ def boxers():
         "wins": "COALESCE(r.wins,0)",
         "losses": "COALESCE(r.losses,0)",
         "draws": "COALESCE(r.draws,0)",
-        "ko_wins": "COALESCE(r.ko_wins,0)"
+        "ko_wins": "COALESCE(r.ko_wins,0)",
     }
     sort_expr = SORT_MAP.get(sort, "b.last_name")
     dir_sql = "DESC" if direction == "desc" else "ASC"
@@ -72,8 +108,11 @@ def boxers():
 
     params, where = [], ""
     if q:
-        where = """ WHERE LOWER(b.first_name) LIKE %s OR LOWER(b.last_name) LIKE %s
-                    OR LOWER(s.name) LIKE %s """
+        where = """
+            WHERE LOWER(b.first_name) LIKE %s
+               OR LOWER(b.last_name)  LIKE %s
+               OR LOWER(s.name)       LIKE %s
+        """
         like = f"%{q.lower()}%"
         params = [like, like, like]
 
@@ -83,7 +122,7 @@ def boxers():
 
     return render_template("boxers.html", rows=rows, q=q, sort=sort, direction=direction)
 
-# --- ADD BOXERS ---
+# NEW BOXER FORM
 @app.get("/boxers/new")
 def boxer_new():
     wcs = db.fetch_all("""
@@ -97,12 +136,10 @@ def boxer_new():
         ORDER BY name
     """)
     default_stable = next((s for s in stables if s["is_user_controlled"]), None)
-    form = {
-        "stable_id": str(default_stable["stable_id"]) if default_stable else ""
-    }
+    form = {"stable_id": str(default_stable["stable_id"]) if default_stable else ""}
     return render_template("boxer_new.html", wcs=wcs, stables=stables, errors={}, form=form)
 
-
+# CREATE BOXER
 @app.post("/boxers/new")
 def boxer_create():
     form = {
@@ -121,18 +158,16 @@ def boxer_create():
     # Validation
     errors = {}
     if not form["first_name"]: errors["first_name"] = "Required"
-    if not form["last_name"]: errors["last_name"] = "Required"
+    if not form["last_name"]:  errors["last_name"]  = "Required"
     if not form["weight_class_id"]: errors["weight_class_id"] = "Choose a weight class"
-    if not form["stable_id"]: errors["stable_id"] = "Choose a stable"
+    if not form["stable_id"]:       errors["stable_id"]       = "Choose a stable"
 
     def valid_rating(v):
         try:
-            x = int(v)
-            return 0 <= x <= 100
-        except:
-            return False
+            x = int(v); return 0 <= x <= 100
+        except: return False
 
-    for k in ("speed", "accuracy", "power", "defense", "stamina", "durability"):
+    for k in ("speed","accuracy","power","defense","stamina","durability"):
         if not valid_rating(form[k]):
             errors[k] = "Enter 0–100"
 
@@ -147,7 +182,6 @@ def boxer_create():
         VALUES (%s, %s, %s, %s)
         RETURNING boxer_id
     """, [form["first_name"], form["last_name"], form["weight_class_id"], form["stable_id"]])
-
     boxer_id = boxer_row["boxer_id"]
 
     # Insert ratings
@@ -164,18 +198,16 @@ def boxer_create():
           durability=EXCLUDED.durability
     """, [
         boxer_id,
-        int(form["speed"]),
-        int(form["accuracy"]),
-        int(form["power"]),
-        int(form["defense"]),
-        int(form["stamina"]),
-        int(form["durability"])
+        int(form["speed"]), int(form["accuracy"]), int(form["power"]),
+        int(form["defense"]), int(form["stamina"]), int(form["durability"])
     ])
 
     flash(f"Added {form['first_name']} {form['last_name']}")
     return redirect(url_for("boxers"))
 
-# --- CARDS LIST ---
+# -----------------------------------------------------------------------------
+# CARDS
+# -----------------------------------------------------------------------------
 @app.get("/cards")
 def cards():
     sort = (request.args.get("sort") or "event_date").lower()
@@ -186,18 +218,17 @@ def cards():
         "event_name": "event_name",
         "city": "city",
         "country": "country",
-        "bout_count": "bout_count"
+        "bout_count": "bout_count",
     }
     sort_expr = SORT_MAP.get(sort, "event_date")
     dir_sql = "DESC" if direction == "desc" else "ASC"
 
     rows = db.fetch_all(f"""
-      SELECT * FROM boxing.v_cards_summary
-      ORDER BY {sort_expr} {dir_sql}, card_id DESC
+        SELECT * FROM boxing.v_cards_summary
+        ORDER BY {sort_expr} {dir_sql}, card_id DESC
     """)
     return render_template("cards.html", cards=rows, sort=sort, direction=direction)
 
-# --- CARD DETAILS ---
 @app.get("/cards/<int:card_id>")
 def card_detail(card_id: int):
     card = db.fetch_one("SELECT * FROM boxing.v_cards_summary WHERE card_id = %s", [card_id])
@@ -206,11 +237,8 @@ def card_detail(card_id: int):
 
     bouts = db.fetch_all("""
       SELECT
-        bo.bout_id,
-        bo.bout_order,
-        bo.main_event,
-        wc.name AS weight_class,
-        t.title_name,
+        bo.bout_id, bo.bout_order, bo.main_event,
+        wc.name AS weight_class, t.title_name,
         MAX(bx.first_name || ' ' || bx.last_name) FILTER (WHERE bp.corner = 'A') AS fighter_a,
         MAX(bx.first_name || ' ' || bx.last_name) FILTER (WHERE bp.corner = 'B') AS fighter_b,
         MAX(bx.first_name || ' ' || bx.last_name) FILTER (WHERE bp.result = 'win') AS winner,
@@ -228,7 +256,9 @@ def card_detail(card_id: int):
 
     return render_template("card_detail.html", card=card, bouts=bouts)
 
-# --- STABLES ---
+# -----------------------------------------------------------------------------
+# STABLES
+# -----------------------------------------------------------------------------
 @app.get("/stables")
 def stables():
     rows = db.fetch_all("""
@@ -243,8 +273,6 @@ def stables():
     """)
     return render_template("stables.html", stables=rows)
 
-
-# --- STABLE DETAILS ---
 @app.get("/stables/<int:stable_id>")
 def stable_detail(stable_id: int):
     stable = db.fetch_one("""
@@ -283,23 +311,20 @@ def stable_detail(stable_id: int):
 
     return render_template("stable_detail.html", stable=stable, roster=roster)
 
-# --- CREATE STABLE
-
 @app.get("/stables/new")
 def new_stable():
     return render_template("new_stable.html")
 
-# app.py
 @app.post("/stables")
 def create_stable():
-    name = request.form.get("name", "").strip()
+    name = (request.form.get("name") or "").strip()
     founded_date = request.form.get("founded_date") or None
     hq_city = request.form.get("hq_city") or None
     is_user_controlled = bool(request.form.get("is_user_controlled"))
 
     if not name:
         flash("Stable name is required.", "error")
-        return redirect(url_for("stables"))
+        return redirect(url_for("new_stable"))
 
     db.execute("""
         INSERT INTO boxing.stable (name, founded_date, is_user_controlled, hq_city)
@@ -309,18 +334,38 @@ def create_stable():
     flash(f'Stable "{name}" created.', "success")
     return redirect(url_for("stables"))
 
-
-# === HEALTHTEST ===
+# -----------------------------------------------------------------------------
+# Health / Static Debug (remove after verifying)
+# -----------------------------------------------------------------------------
 @app.get("/healthz")
 def healthz():
     try:
-        # db.get_conn() is still a valid function from our db module
         with db.get_conn() as conn, conn.cursor() as cur:
             cur.execute("SELECT 1")
             return {"status": "ok"}, 200
     except Exception as e:
         return {"status": "error", "detail": str(e)}, 500
 
-# --- Run App ---
+@app.get("/_debug/static")
+def _debug_static():
+    folder = app.static_folder
+    exists = os.path.isdir(folder)
+    try:
+        files = sorted(os.listdir(folder)) if exists else []
+    except Exception as e:
+        files = [f"<error listing: {e}>"]
+    return jsonify({"static_folder": folder, "exists": exists, "files": files})
+
+@app.get("/_debug/static/<path:name>")
+def _debug_static_file(name):
+    return send_from_directory(app.static_folder, name)
+
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+    app.run(
+        debug=True,
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "8080"))
+    )
