@@ -3,8 +3,8 @@
 # This version integrates your existing routes and UI PLUS the 8‑boxer tournament
 # flow, wired to the pluralized tables:
 #   boxing.tournaments
-#   boxing.tournament_boxers
-#   boxing.tournament_matches
+#   boxing.tournament_boxer
+#   boxing.matches
 #
 # It also avoids duplicate route names (e.g., /api/boxers) and adds:
 #   - /tournaments (index)
@@ -506,8 +506,8 @@ def exhibition_simulate():
 # ---------------------------------------------------------------------------------
 # Expected tables (Postgres):
 #   boxing.tournaments (tournament_id SERIAL PK, name TEXT, is_exhibition BOOL, created_at TIMESTAMP)
-#   boxing.tournament_boxers (tournament_id INT FK, boxer_id INT FK, seed INT, PK (tournament_id, boxer_id))
-#   boxing.tournament_matches  (see fields below)
+#   boxing.tournament_boxer (tournament_id INT FK, boxer_id INT FK, seed INT, PK (tournament_id, boxer_id))
+#   boxing.matches  (see fields below)
 #
 # Index page
 @app.get("/tournaments")
@@ -518,7 +518,7 @@ def tournaments_index():
                COUNT(m.match_id) AS bout_count,
                MIN(m.round) AS min_round, MAX(m.round) AS max_round
         FROM boxing.tournaments t
-        LEFT JOIN boxing.tournament_matches m ON m.tournament_id = t.tournament_id
+        LEFT JOIN boxing.matches m ON m.tournament_id = t.tournament_id
         GROUP BY t.tournament_id, t.name, t.is_exhibition
         ORDER BY t.tournament_id DESC
         """
@@ -547,7 +547,7 @@ def tournaments_bracket(tid):
                m.boxer2_id, b2.first_name || ' ' || b2.last_name AS boxer2_name,
                m.winner_id, bw.first_name || ' ' || bw.last_name AS winner_name,
                m.method, m.result_rounds, m.is_official
-        FROM boxing.tournament_matches m
+        FROM boxing.matches m
         LEFT JOIN boxing.boxer b1 ON b1.boxer_id = m.boxer1_id
         LEFT JOIN boxing.boxer b2 ON b2.boxer_id = m.boxer2_id
         LEFT JOIN boxing.boxer bw ON bw.boxer_id = m.winner_id
@@ -587,7 +587,7 @@ def api_create_tournament():
     # Insert entries
     for s in seeds:
         db.execute(
-            "INSERT INTO boxing.tournament_boxers (tournament_id, boxer_id, seed) VALUES (%s,%s,%s)",
+            "INSERT INTO boxing.tournament_boxer (tournament_id, boxer_id, seed) VALUES (%s,%s,%s)",
             [tid, s["boxer_id"], s["seed"]]
         )
 
@@ -595,16 +595,16 @@ def api_create_tournament():
     pairs = [(1,8),(4,5),(3,6),(2,7)]
     for i,(a,b) in enumerate(pairs, start=1):
         b1 = db.fetch_one(
-            "SELECT boxer_id FROM boxing.tournament_boxers WHERE tournament_id=%s AND seed=%s",
+            "SELECT boxer_id FROM boxing.tournament_boxer WHERE tournament_id=%s AND seed=%s",
             [tid,a]
         )["boxer_id"]
         b2 = db.fetch_one(
-            "SELECT boxer_id FROM boxing.tournament_boxers WHERE tournament_id=%s AND seed=%s",
+            "SELECT boxer_id FROM boxing.tournament_boxer WHERE tournament_id=%s AND seed=%s",
             [tid,b]
         )["boxer_id"]
         db.execute(
             """
-            INSERT INTO boxing.tournament_matches (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
+            INSERT INTO boxing.matches (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
             VALUES (%s, 1, %s, %s, %s, %s)
             """,
             [tid, i, b1, b2, not is_exhibition]
@@ -620,7 +620,7 @@ def api_save_result(match_id):
     method = data.get("method") or "UD"
     rounds = int(data.get("result_rounds") or 12)
 
-    m = db.fetch_one("SELECT * FROM boxing.tournament_matches WHERE match_id=%s", [match_id])
+    m = db.fetch_one("SELECT * FROM boxing.matches WHERE match_id=%s", [match_id])
     if not m:
         return jsonify({"error":"match not found"}), 404
     if not winner_id or winner_id not in (m["boxer1_id"], m["boxer2_id"]):
@@ -629,7 +629,7 @@ def api_save_result(match_id):
     # Save result
     db.execute(
         """
-        UPDATE boxing.tournament_matches
+        UPDATE boxing.matches
         SET winner_id=%s, method=%s, result_rounds=%s
         WHERE match_id=%s
         """,
@@ -641,7 +641,7 @@ def api_save_result(match_id):
 
     def all_winners_for_round(rn):
         rows = db.fetch_all(
-            "SELECT winner_id FROM boxing.tournament_matches WHERE tournament_id=%s AND round=%s ORDER BY bout_no",
+            "SELECT winner_id FROM boxing.matches WHERE tournament_id=%s AND round=%s ORDER BY bout_no",
             [tid, rn]
         )
         return rows if rows and all(r["winner_id"] for r in rows) else None
@@ -657,7 +657,7 @@ def api_save_result(match_id):
             for i,(b1,b2) in enumerate(sf_pairs, start=1):
                 db.execute(
                     """
-                    INSERT INTO boxing.tournament_matches (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
+                    INSERT INTO boxing.matches (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
                     VALUES (%s, 2, %s, %s, %s, %s)
                     """,
                     [tid, i, b1, b2, m["is_official"]]
@@ -670,7 +670,7 @@ def api_save_result(match_id):
             b1, b2 = winners[0]["winner_id"], winners[1]["winner_id"]
             db.execute(
                 """
-                INSERT INTO boxing.tournament_matches (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
+                INSERT INTO boxing.matches (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
                 VALUES (%s, 3, 1, %s, %s, %s)
                 """,
                 [tid, b1, b2, m["is_official"]]
