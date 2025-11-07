@@ -1,113 +1,90 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>{{ tournament.name }} — Bracket</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root { --bg:#0f172a; --card:#111827; --ink:#e5e7eb; --ink-dim:#9ca3af; --accent:#60a5fa; --muted:#1f2937; }
-    body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Arial}
-    header{padding:16px 20px;background:#0b1220;border-bottom:1px solid #0f1a2b;display:flex;justify-content:space-between;align-items:center}
-    main{max-width:1000px;margin:24px auto;padding:0 16px}
-    .card{background:var(--card);border:1px solid #1f2937;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
-    .p{padding:18px}
-    h1{font-size:24px;margin:0}
-    h2{font-size:18px;color:var(--ink-dim);margin:16px 0 8px}
-    .grid{display:grid;gap:14px}
-    .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-    .match{border:1px solid #1f2937;border-radius:12px;padding:12px;background:#0b1220}
-    .meta{font-size:12px;color:var(--ink-dim);margin-bottom:8px}
-    .winner{font-weight:700}
-    .btn{background:var(--accent);color:#04152b;border:0;padding:8px 10px;border-radius:10px;font-weight:600;cursor:pointer}
-    select, input[type="number"]{width:100%;padding:8px;background:#0e1626;border:1px solid #253047;border-radius:10px;color:var(--ink)}
-    label{font-size:12px;color:var(--ink-dim)}
-    .controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:8px}
-    a{color:var(--accent);text-decoration:none}
-    .hint{color:var(--ink-dim);font-size:13px}
-  </style>
-</head>
-<body>
-  <header>
-    <strong>Simple Sports Sims Boxing</strong>
-    <a href="/tournaments">← All tournaments</a>
-  </header>
+{% extends "base.html" %}
 
-  <main>
-    <div class="card">
-      <div class="p">
-        <h1>{{ tournament.name }}</h1>
-        <p class="hint">{{ 'Exhibition (does not affect records)' if tournament.is_exhibition else 'Official (affects records)' }}</p>
-
-        {% set rounds = [1,2,3] %}
-        {% for r in rounds %}
-          <h2>Round {{ r }}</h2>
-          <div class="grid">
-            {% for m in matches if m.round == r %}
-              <div class="match" data-match-id="{{ m.match_id }}">
-                <div class="meta">Bout #{{ m.bout_no }}</div>
-
-                <div><strong>A:</strong> {{ m.boxer1_name or 'TBD' }}</div>
-                <div><strong>B:</strong> {{ m.boxer2_name or 'TBD' }}</div>
-
-                {% if m.winner_id %}
-                  <div class="winner" style="margin-top:8px">
-                    Winner: {{ m.winner_name }} ({{ m.method or 'UD' }}, {{ m.result_rounds or 12 }} rnds)
-                  </div>
-                {% else %}
-                  <div class="controls">
-                    <div>
-                      <label>Winner</label>
-                      <select class="winSel">
-                        <option value="">— select —</option>
-                        {% if m.boxer1_id %}<option value="{{ m.boxer1_id }}">{{ m.boxer1_name }}</option>{% endif %}
-                        {% if m.boxer2_id %}<option value="{{ m.boxer2_id }}">{{ m.boxer2_name }}</option>{% endif %}
-                      </select>
-                    </div>
-                    <div>
-                      <label>Method</label>
-                      <select class="methodSel">
-                        <option value="UD">UD</option>
-                        <option value="SD">SD</option>
-                        <option value="MD">MD</option>
-                        <option value="TKO">TKO</option>
-                        <option value="KO">KO</option>
-                        <option value="RTD">RTD</option>
-                        <option value="DQ">DQ</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label>Rounds</label>
-                      <input class="roundsInp" type="number" min="1" max="15" value="12" />
-                    </div>
-                  </div>
-                  <div style="margin-top:10px">
-                    <button class="btn saveBtn">Save result</button>
-                  </div>
-                {% endif %}
-              </div>
-            {% endfor %}
-          </div>
-        {% endfor %}
-
-        {% if not matches or matches|length == 0 %}
-          <p class="hint">No matches yet. If this persists, verify inserts into <code>boxing.tournament_boxer</code> and <code>boxing.matches</code> for this tournament.</p>
-        {% endif %}
+{% block content %}
+<div class="card">
+  <div class="p">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <h1 style="margin:0">{{ tournament.name }}</h1>
+        <div class="muted">{{ 'Exhibition (does not affect records)' if tournament.is_exhibition else 'Official (affects records)' }}</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <a href="/tournaments">← All tournaments</a>
+        <button id="simAllBtn" class="btn">Simulate Entire Bracket</button>
       </div>
     </div>
-  </main>
 
-  <script>
-    // Save result -> calls /api/matches/<id>/result then reloads (server will auto-advance)
-    document.querySelectorAll('.match').forEach(box => {
-      const btn = box.querySelector('.saveBtn');
-      if (!btn) return;
+    {% set rounds = [1,2,3] %}
+    {% for r in rounds %}
+      <h2 style="margin-top:18px">Round {{ r }}</h2>
+      <div class="grid" style="display:grid;gap:14px">
+        {% for m in matches if m.round == r %}
+          <div class="match" data-match-id="{{ m.match_id }}" style="border:1px solid #1f2937;border-radius:12px;padding:12px">
+            <div class="muted" style="margin-bottom:6px">Bout #{{ m.bout_no }}</div>
 
-      btn.addEventListener('click', async () => {
+            <div><strong>A:</strong> {{ m.boxer1_name or 'TBD' }}</div>
+            <div><strong>B:</strong> {{ m.boxer2_name or 'TBD' }}</div>
+
+            {% if m.winner_id %}
+              <div style="margin-top:8px;font-weight:700">
+                Winner: {{ m.winner_name }} ({{ m.method or 'UD' }}, {{ m.result_rounds or 12 }} rnds)
+              </div>
+            {% else %}
+              <div class="controls" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:8px">
+                <div>
+                  <label>Winner</label>
+                  <select class="winSel">
+                    <option value="">— select —</option>
+                    {% if m.boxer1_id %}<option value="{{ m.boxer1_id }}">{{ m.boxer1_name }}</option>{% endif %}
+                    {% if m.boxer2_id %}<option value="{{ m.boxer2_id }}">{{ m.boxer2_name }}</option>{% endif %}
+                  </select>
+                </div>
+                <div>
+                  <label>Method</label>
+                  <select class="methodSel">
+                    <option value="UD">UD</option>
+                    <option value="SD">SD</option>
+                    <option value="MD">MD</option>
+                    <option value="TKO">TKO</option>
+                    <option value="KO">KO</option>
+                    <option value="RTD">RTD</option>
+                    <option value="DQ">DQ</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Rounds</label>
+                  <input class="roundsInp" type="number" min="1" max="15" value="12" />
+                </div>
+              </div>
+
+              <div style="margin-top:10px; display:flex; gap:10px">
+                <button class="btn saveBtn">Save result</button>
+                <button class="btn simBtn" style="background:#34d399;color:#052b19">Simulate</button>
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+
+    {% if not matches or matches|length == 0 %}
+      <p class="muted">No matches yet. If this persists, verify inserts into <code>boxing.tournament_boxer</code> and <code>boxing.matches</code> for this tournament.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Manual save -> /api/matches/<id>/result (server also auto-advances) :contentReference[oaicite:6]{index=6}
+  document.querySelectorAll('.match').forEach(box => {
+    const save = box.querySelector('.saveBtn');
+    if (save) {
+      save.addEventListener('click', async () => {
         const matchId = box.getAttribute('data-match-id');
         const winner = box.querySelector('.winSel').value;
         const method = box.querySelector('.methodSel').value;
         const rounds = box.querySelector('.roundsInp').value || 12;
-
         if (!winner) { alert('Pick a winner'); return; }
 
         const resp = await fetch(`/api/matches/${matchId}/result`, {
@@ -115,16 +92,35 @@
           headers: {'Content-Type':'application/json'},
           body: JSON.stringify({ winner_id: Number(winner), method, result_rounds: Number(rounds) })
         });
-
-        let out = {};
-        try { out = await resp.json(); } catch {}
-        if (!resp.ok) {
-          alert(out.error || 'Server error saving result');
-          return;
-        }
-        location.reload(); // shows updated winners and next-round auto-creates
+        let out = {}; try { out = await resp.json(); } catch {}
+        if (!resp.ok) { alert(out.error || 'Server error saving result'); return; }
+        location.reload();
       });
+    }
+
+    // Auto-simulate this match -> /api/matches/<id>/simulate (uses engine.py) :contentReference[oaicite:7]{index=7}
+    const sim = box.querySelector('.simBtn');
+    if (sim) {
+      sim.addEventListener('click', async () => {
+        const matchId = box.getAttribute('data-match-id');
+        const resp = await fetch(`/api/matches/${matchId}/simulate`, { method:'POST' });
+        let out = {}; try { out = await resp.json(); } catch {}
+        if (!resp.ok) { alert(out.error || 'Server error simulating'); return; }
+        location.reload();
+      });
+    }
+  });
+
+  // Simulate entire bracket -> /api/tournaments/<tid>/simulate_all :contentReference[oaicite:8]{index=8}
+  const simAll = document.getElementById('simAllBtn');
+  if (simAll) {
+    simAll.addEventListener('click', async () => {
+      const tid = {{ tournament.tournament_id }};
+      const resp = await fetch(`/api/tournaments/${tid}/simulate_all`, { method:'POST' });
+      let out = {}; try { out = await resp.json(); } catch {}
+      if (!resp.ok) { alert(out.error || 'Server error simulating all'); return; }
+      location.reload();
     });
-  </script>
-</body>
-</html>
+  }
+</script>
+{% endblock %}

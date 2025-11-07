@@ -1,73 +1,49 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Tournaments</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root { --bg:#0f172a; --card:#111827; --ink:#e5e7eb; --ink-dim:#9ca3af; --accent:#60a5fa; --muted:#1f2937; }
-    body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Arial}
-    header{padding:16px 20px;background:#0b1220;border-bottom:1px solid #0f1a2b;display:flex;justify-content:space-between;align-items:center}
-    main{max-width:980px;margin:24px auto;padding:0 16px}
-    .card{background:var(--card);border:1px solid #1f2937;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
-    .p{padding:18px}
-    h1{font-size:24px;margin:0}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:12px 10px;border-bottom:1px solid #1f2937}
-    th{color:var(--ink-dim);text-align:left;font-weight:600}
-    a{color:var(--accent);text-decoration:none}
-    .btn{background:var(--accent);color:#04152b;border:0;padding:10px 14px;border-radius:10px;font-weight:600;cursor:pointer}
-    .empty{color:var(--ink-dim);padding:20px}
-  </style>
-</head>
-<body>
-  <header>
-    <strong>Simple Sports Sims Boxing</strong>
-    <a class="btn" href="/tournaments/new">New Tournament</a>
-  </header>
+{% extends "base.html" %}
 
-  <main>
-    <div class="card">
-      <div class="p">
-        <h1>Tournaments</h1>
-        {% if tournaments and tournaments|length %}
-          <div style="overflow:auto;margin-top:12px">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>Bouts</th>
-                  <th>Rounds covered</th>
-                  <th>Open</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for t in tournaments %}
-                <tr>
-                  <td>{{ t.tournament_id }}</td>
-                  <td>{{ t.name }}</td>
-                  <td>{{ 'Exhibition' if t.is_exhibition else 'Official' }}</td>
-                  <td>{{ t.bout_count or 0 }}</td>
-                  <td>
-                    {% if t.min_round %}
-                      R{{ t.min_round }}–R{{ t.max_round }}
-                    {% else %}
-                      —
-                    {% endif %}
-                  </td>
-                  <td><a href="/tournaments/{{ t.tournament_id }}">View</a></td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <p class="empty">No tournaments yet. <a href="/tournaments/new">Create one</a>.</p>
-        {% endif %}
-      </div>
+{% block content %}
+<div class="card">
+  <div class="p">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <h1 style="margin:0">Tournaments</h1>
+      <a class="btn" href="/tournaments/new">New Tournament</a>
     </div>
-  </main>
-</body>
-</html>
+
+    {% if tournaments and tournaments|length %}
+      <div style="overflow:auto;margin-top:12px">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Bouts</th>
+              <th>Rounds</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in tournaments %}
+            <tr>
+              <td>{{ t.tournament_id }}</td>
+              <td>{{ t.name }}</td>
+              <td>{{ 'Exhibition' if t.is_exhibition else 'Official' }}</td>
+              <td>{{ t.bout_count or 0 }}</td>
+              <td>
+                {% if t.min_round %}
+                  R{{ t.min_round }}–R{{ t.max_round }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td><a href="/tournaments/{{ t.tournament_id }}">View</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No tournaments yet. <a href="/tournaments/new">Create one</a>.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -678,6 +678,172 @@ def api_save_result(match_id):
 
     return jsonify({"ok": True})
 
+# --- Helpers to build Fighter objects from DB ---
+def _fighter_from_db(boxer_id: int) -> Fighter:
+    row = db.fetch_one("""
+        SELECT bx.boxer_id,
+               bx.first_name || ' ' || bx.last_name AS name,
+               COALESCE(r.speed,50) AS speed,
+               COALESCE(r.accuracy,50) AS accuracy,
+               COALESCE(r.power,50) AS power,
+               COALESCE(r.defense,50) AS defense,
+               COALESCE(r.stamina,50) AS stamina,
+               COALESCE(r.durability,50) AS durability
+        FROM boxing.boxer bx
+        LEFT JOIN boxing.boxer_ratings r ON r.boxer_id = bx.boxer_id
+        WHERE bx.boxer_id = %s
+    """, [boxer_id])
+    if not row:
+        abort(400, f"Invalid boxer_id {boxer_id}")
+    return Fighter(
+        boxer_id=row["boxer_id"], name=row["name"],
+        speed=int(row["speed"]), accuracy=int(row["accuracy"]),
+        power=int(row["power"]), defense=int(row["defense"]),
+        stamina=int(row["stamina"]), durability=int(row["durability"])
+    )
+
+def _method_from_engine_result(res: dict) -> (str, int):
+    """Map engine result to (method, rounds)."""
+    rtype = res["result"]["type"]
+    if rtype == "KO":
+        return "KO", int(res["result"]["round"])
+    if rtype == "TKO":
+        return "TKO", int(res["result"]["round"])
+    # Decision
+    verdict = (res["result"].get("verdict") or "").lower()
+    if "split" in verdict:
+        meth = "SD"
+    elif "majority" in verdict:
+        meth = "MD"
+    else:
+        meth = "UD"
+    return meth, 12
+
+# --- API: simulate ONE match, save, auto-advance like manual entry ---
+@app.post("/api/matches/<int:match_id>/simulate")
+def api_simulate_match(match_id: int):
+    m = db.fetch_one("SELECT * FROM boxing.matches WHERE match_id=%s", [match_id])
+    if not m:
+        return jsonify({"error":"match not found"}), 404
+    if not m["boxer1_id"] or not m["boxer2_id"]:
+        return jsonify({"error":"match not ready (missing boxer ids)"}), 400
+    if m.get("winner_id"):
+        return jsonify({"error":"match already decided"}), 400
+
+    # Optional deterministic seed support from JSON body
+    data = request.get_json(silent=True) or {}
+    seed = data.get("seed")
+    seed = int(seed) if isinstance(seed, int) else None
+
+    A = _fighter_from_db(m["boxer1_id"])
+    B = _fighter_from_db(m["boxer2_id"])
+
+    sim = simulate_fight(A, B, rounds=12, seed=seed)  # uses your engine
+    if not sim.get("winner"):
+        # Draws aren’t great for a bracket; nudge to SD for higher-total landed.
+        # (You can change this policy.)
+        method, rounds_done = "SD", 12
+        winner_id = A.boxer_id if sum(r["landed_a"] for r in sim["play_by_play"]) >= sum(r["landed_b"] for r in sim["play_by_play"]) else B.boxer_id
+    else:
+        method, rounds_done = _method_from_engine_result(sim)
+        winner_id = sim["winner"]["boxer_id"]
+
+    # Save like the manual endpoint
+    db.execute(
+        "UPDATE boxing.matches SET winner_id=%s, method=%s, result_rounds=%s WHERE match_id=%s",
+        [winner_id, method, rounds_done, match_id]
+    )
+
+    # Reuse the same auto-advance logic as /api/matches/<id>/result
+    tid = m["tournament_id"]
+    round_num = m["round"]
+
+    def all_winners_for_round(rn):
+        rows = db.fetch_all(
+            "SELECT winner_id FROM boxing.matches WHERE tournament_id=%s AND round=%s ORDER BY bout_no",
+            [tid, rn]
+        )
+        return rows if rows and all(r["winner_id"] for r in rows) else None
+
+    # QFs -> SFs
+    if round_num == 1:
+        winners = all_winners_for_round(1)
+        if winners and len(winners) == 4:
+            sf_pairs = [
+                (winners[0]["winner_id"], winners[1]["winner_id"]),
+                (winners[2]["winner_id"], winners[3]["winner_id"]),
+            ]
+            for i,(b1,b2) in enumerate(sf_pairs, start=1):
+                db.execute(
+                    """
+                    INSERT INTO boxing.matches (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
+                    VALUES (%s, 2, %s, %s, %s, %s)
+                    """,
+                    [tid, i, b1, b2, m["is_official"]]
+                )
+
+    # SFs -> Final
+    if round_num == 2:
+        winners = all_winners_for_round(2)
+        if winners and len(winners) == 2:
+            b1, b2 = winners[0]["winner_id"], winners[1]["winner_id"]
+            db.execute(
+                """
+                INSERT INTO boxing.matches (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
+                VALUES (%s, 3, 1, %s, %s, %s)
+                """,
+                [tid, b1, b2, m["is_official"]]
+            )
+
+    return jsonify({"ok": True, "winner_id": winner_id, "method": method, "rounds": rounds_done, "sim": sim})
+
+# --- API: simulate ALL remaining matches in bracket order (QF -> SF -> Final) ---
+@app.post("/api/tournaments/<int:tid>/simulate_all")
+def api_simulate_all(tid: int):
+    # Sim QFs in bout order
+    qfs = db.fetch_all("""
+        SELECT match_id FROM boxing.matches
+        WHERE tournament_id=%s AND round=1
+        ORDER BY bout_no
+    """, [tid])
+    for r in qfs:
+        m = db.fetch_one("SELECT winner_id FROM boxing.matches WHERE match_id=%s", [r["match_id"]])
+        if not m["winner_id"]:
+            resp = api_simulate_match.__wrapped__(r["match_id"])  # call core function without decorators
+            if isinstance(resp, tuple) and resp[1] >= 400:
+                return resp
+
+    # Sim SFs (should exist now)
+    sfs = db.fetch_all("""
+        SELECT match_id FROM boxing.matches
+        WHERE tournament_id=%s AND round=2
+        ORDER BY bout_no
+    """, [tid])
+    for r in sfs:
+        m = db.fetch_one("SELECT winner_id FROM boxing.matches WHERE match_id=%s", [r["match_id"]])
+        if not m["winner_id"]:
+            resp = api_simulate_match.__wrapped__(r["match_id"])
+            if isinstance(resp, tuple) and resp[1] >= 400:
+                return resp
+
+    # Sim Final
+    final = db.fetch_one("""
+        SELECT match_id FROM boxing.matches
+        WHERE tournament_id=%s AND round=3
+        ORDER BY bout_no
+        LIMIT 1
+    """, [tid])
+    if final:
+        m = db.fetch_one("SELECT winner_id FROM boxing.matches WHERE match_id=%s", [final["match_id"]])
+        if not m["winner_id"]:
+            resp = api_simulate_match.__wrapped__(final["match_id"])
+            if isinstance(resp, tuple) and resp[1] >= 400:
+                return resp
+
+    return jsonify({"ok": True})
+
+
+
 # ---------------------------------------------------------------------------------
 # Health / Static Debug
 # ---------------------------------------------------------------------------------
