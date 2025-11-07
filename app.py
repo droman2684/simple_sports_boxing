@@ -1,9 +1,19 @@
-# app.py — Simple Sports Sims Boxing (with Tournament UI & APIs)
-# -----------------------------------------------------------------------------
-# This file reproduces your existing app.py and adds a complete 8‑boxer
-# tournament flow (HTML UI + JSON APIs) using your existing boxing schema
-# conventions (boxing.boxer, boxer_ratings, etc.).
-# -----------------------------------------------------------------------------
+# app.py — Simple Sports Sims Boxing (incorporated tournament flow w/ plural tables)
+# ---------------------------------------------------------------------------------
+# This version integrates your existing routes and UI PLUS the 8‑boxer tournament
+# flow, wired to the pluralized tables:
+#   boxing.tournaments
+#   boxing.tournament_boxers
+#   boxing.tournament_matches
+#
+# It also avoids duplicate route names (e.g., /api/boxers) and adds:
+#   - /tournaments (index)
+#   - /tournaments/new (create form)
+#   - /tournaments/<id> (bracket + result entry, auto-advance)
+#
+# Requires: db.py helpers (get_conn, fetch_one, fetch_all, execute)
+# Optional: engine.py (Fighter, simulate_fight) for exhibition/sim endpoints.
+# ---------------------------------------------------------------------------------
 
 import os
 from pathlib import Path
@@ -21,9 +31,9 @@ from engine import Fighter, simulate_fight
 # Central DB helpers (must expose: get_conn, fetch_one, fetch_all, execute)
 import db
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 # App Setup (absolute paths = bulletproof static + templates)
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv()
 
@@ -35,12 +45,12 @@ app = Flask(
 )
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key-change-later")
 
-# Optional CORS (kept per your snippet). If you don't need it, remove these 2 lines.
+# Optional CORS
 CORS(app, resources={r"/*": {
     "origins": ["https://simplesportssim.com", "https://www.simplesportssim.com"]
 }})
 
-# In debug: kill static caching so CSS changes show immediately
+# Dev: disable static/template caching
 if app.debug or os.getenv("FLASK_ENV") == "development":
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
     app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -57,9 +67,9 @@ def _inject_asset_helper():
         return url_for("static", filename=filename, v=v)
     return {"asset": asset}
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 # DASHBOARD
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 @app.get("/")
 def dashboard():
     classes = db.fetch_one("SELECT COUNT(*) AS count FROM boxing.weight_class")["count"]
@@ -81,9 +91,9 @@ def dashboard():
         champions=champions, recent=recent
     )
 
-# -----------------------------------------------------------------------------
-# BOXERS
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
+# BOXERS (Pages + Create)
+# ---------------------------------------------------------------------------------
 @app.get("/boxers")
 def boxers():
     q = request.args.get("q", "").strip()
@@ -131,7 +141,6 @@ def boxers():
 
     return render_template("boxers.html", rows=rows, q=q, sort=sort, direction=direction)
 
-# NEW BOXER FORM
 @app.get("/boxers/new")
 def boxer_new():
     wcs = db.fetch_all("""
@@ -148,7 +157,6 @@ def boxer_new():
     form = {"stable_id": str(default_stable["stable_id"]) if default_stable else ""}
     return render_template("boxer_new.html", wcs=wcs, stables=stables, errors={}, form=form)
 
-# CREATE BOXER
 @app.post("/boxers/new")
 def boxer_create():
     form = {
@@ -214,9 +222,9 @@ def boxer_create():
     flash(f"Added {form['first_name']} {form['last_name']}")
     return redirect(url_for("boxers"))
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 # CARDS
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 @app.get("/cards")
 def cards():
     sort = (request.args.get("sort") or "event_date").lower()
@@ -265,9 +273,9 @@ def card_detail(card_id: int):
 
     return render_template("card_detail.html", card=card, bouts=bouts)
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 # STABLES
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 @app.get("/stables")
 def stables():
     rows = db.fetch_all("""
@@ -343,9 +351,9 @@ def create_stable():
     flash(f'Stable "{name}" created.', "success")
     return redirect(url_for("stables"))
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 # FIGHT SIMULATION (JSON)
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 @app.post("/sim/fight")
 def sim_fight():
     """
@@ -411,9 +419,9 @@ def sim_fight():
     result = simulate_fight(A, B, rounds=rounds, seed=seed)
     return result, 200
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 # EXHIBITIONS (FORM + RESULT VIEW)
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 @app.get("/exhibitions/new")
 def exhibition_new():
     boxers = db.fetch_all("""
@@ -493,29 +501,40 @@ def exhibition_simulate():
         a=A, b=B, rounds=rounds, seed=seed, sim=sim
     )
 
-# -----------------------------------------------------------------------------
-# TOURNAMENTS (8‑Boxer UI)
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
+# TOURNAMENTS (8‑Boxer UI) — PLURALIZED TABLES
+# ---------------------------------------------------------------------------------
 # Expected tables (Postgres):
-#   boxing.tournament (tournament_id SERIAL PK, name TEXT, is_exhibition BOOL, created_at TIMESTAMP)
-#   boxing.tournament_boxer (tournament_id INT FK, boxer_id INT FK, seed INT, PK (tournament_id, boxer_id))
-#   boxing.tournament_match (
-#       match_id SERIAL PK, tournament_id INT FK, round INT, bout_no INT,
-#       boxer1_id INT, boxer2_id INT, scheduled_at TIMESTAMP,
-#       is_official BOOL, winner_id INT, method TEXT, result_rounds INT, notes TEXT,
-#       UNIQUE (tournament_id, round, bout_no)
-#   )
+#   boxing.tournaments (tournament_id SERIAL PK, name TEXT, is_exhibition BOOL, created_at TIMESTAMP)
+#   boxing.tournament_boxers (tournament_id INT FK, boxer_id INT FK, seed INT, PK (tournament_id, boxer_id))
+#   boxing.tournament_matches  (see fields below)
+#
+# Index page
+@app.get("/tournaments")
+def tournaments_index():
+    rows = db.fetch_all(
+        """
+        SELECT t.tournament_id, t.name, t.is_exhibition,
+               COUNT(m.match_id) AS bout_count,
+               MIN(m.round) AS min_round, MAX(m.round) AS max_round
+        FROM boxing.tournaments t
+        LEFT JOIN boxing.tournament_matches m ON m.tournament_id = t.tournament_id
+        GROUP BY t.tournament_id, t.name, t.is_exhibition
+        ORDER BY t.tournament_id DESC
+        """
+    )
+    return render_template("tournaments_index.html", tournaments=rows)
 
-# --- HTML: create form ---
+# Create form
 @app.get("/tournaments/new")
-def tournament_new():
+def tournaments_new():
     return render_template("tournament_new.html")
 
-# --- HTML: bracket view ---
+# Bracket view
 @app.get("/tournaments/<int:tid>")
-def tournament_bracket(tid):
+def tournaments_bracket(tid):
     t = db.fetch_one(
-        "SELECT tournament_id, name, is_exhibition FROM boxing.tournament WHERE tournament_id=%s",
+        "SELECT tournament_id, name, is_exhibition FROM boxing.tournaments WHERE tournament_id=%s",
         [tid]
     )
     if not t:
@@ -527,8 +546,8 @@ def tournament_bracket(tid):
                m.boxer1_id, b1.first_name || ' ' || b1.last_name AS boxer1_name,
                m.boxer2_id, b2.first_name || ' ' || b2.last_name AS boxer2_name,
                m.winner_id, bw.first_name || ' ' || bw.last_name AS winner_name,
-               m.method, m.result_rounds
-        FROM boxing.tournament_match m
+               m.method, m.result_rounds, m.is_official
+        FROM boxing.tournament_matches m
         LEFT JOIN boxing.boxer b1 ON b1.boxer_id = m.boxer1_id
         LEFT JOIN boxing.boxer b2 ON b2.boxer_id = m.boxer2_id
         LEFT JOIN boxing.boxer bw ON bw.boxer_id = m.winner_id
@@ -537,16 +556,15 @@ def tournament_bracket(tid):
         """,
         [tid]
     )
-
     return render_template("tournament_bracket.html", tournament=t, matches=matches)
 
-# --- API: list boxers for selects ---
+# API: list boxers for selects (used by tournament_new.html)
 @app.get("/api/boxers")
-def api_boxers():
+def api_boxers_for_tournaments():
     rows = db.fetch_all("SELECT boxer_id, (first_name || ' ' || last_name) AS name FROM boxing.boxer ORDER BY last_name, first_name")
     return jsonify({"boxers": rows})
 
-# --- API: create tournament + quarterfinals ---
+# API: create tournament + quarterfinals
 @app.post("/api/tournaments")
 def api_create_tournament():
     data = request.get_json(silent=True) or {}
@@ -556,13 +574,12 @@ def api_create_tournament():
 
     if len(seeds) != 8 or any(not s.get("boxer_id") for s in seeds):
         return jsonify({"error":"Need 8 boxers with seeds 1..8"}), 400
-    seed_nums = sorted(s["seed"] for s in seeds)
-    if seed_nums != [1,2,3,4,5,6,7,8]:
+    if sorted(s["seed"] for s in seeds) != [1,2,3,4,5,6,7,8]:
         return jsonify({"error":"Seeds must be 1..8"}), 400
 
     # Create tournament
     trow = db.fetch_one(
-        "INSERT INTO boxing.tournament (name, is_exhibition) VALUES (%s, %s) RETURNING tournament_id",
+        "INSERT INTO boxing.tournaments (name, is_exhibition) VALUES (%s, %s) RETURNING tournament_id",
         [name, is_exhibition]
     )
     tid = trow["tournament_id"]
@@ -570,34 +587,32 @@ def api_create_tournament():
     # Insert entries
     for s in seeds:
         db.execute(
-            "INSERT INTO boxing.tournament_boxer (tournament_id, boxer_id, seed) VALUES (%s,%s,%s)",
+            "INSERT INTO boxing.tournament_boxers (tournament_id, boxer_id, seed) VALUES (%s,%s,%s)",
             [tid, s["boxer_id"], s["seed"]]
         )
 
     # Create QFs: (1-8), (4-5), (3-6), (2-7)
     pairs = [(1,8),(4,5),(3,6),(2,7)]
-    bout_no = 1
-    for a,b in pairs:
+    for i,(a,b) in enumerate(pairs, start=1):
         b1 = db.fetch_one(
-            "SELECT boxer_id FROM boxing.tournament_boxer WHERE tournament_id=%s AND seed=%s",
+            "SELECT boxer_id FROM boxing.tournament_boxers WHERE tournament_id=%s AND seed=%s",
             [tid,a]
         )["boxer_id"]
         b2 = db.fetch_one(
-            "SELECT boxer_id FROM boxing.tournament_boxer WHERE tournament_id=%s AND seed=%s",
+            "SELECT boxer_id FROM boxing.tournament_boxers WHERE tournament_id=%s AND seed=%s",
             [tid,b]
         )["boxer_id"]
         db.execute(
             """
-            INSERT INTO boxing.tournament_match (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
+            INSERT INTO boxing.tournament_matches (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
             VALUES (%s, 1, %s, %s, %s, %s)
             """,
-            [tid, bout_no, b1, b2, not is_exhibition]
+            [tid, i, b1, b2, not is_exhibition]
         )
-        bout_no += 1
 
     return jsonify({"tournament_id": tid})
 
-# --- API: record result + auto-advance ---
+# API: record result + auto-advance
 @app.post("/api/matches/<int:match_id>/result")
 def api_save_result(match_id):
     data = request.get_json(silent=True) or {}
@@ -605,18 +620,16 @@ def api_save_result(match_id):
     method = data.get("method") or "UD"
     rounds = int(data.get("result_rounds") or 12)
 
-    m = db.fetch_one("SELECT * FROM boxing.tournament_match WHERE match_id=%s", [match_id])
+    m = db.fetch_one("SELECT * FROM boxing.tournament_matches WHERE match_id=%s", [match_id])
     if not m:
         return jsonify({"error":"match not found"}), 404
-    if not winner_id:
-        return jsonify({"error":"winner_id required"}), 400
-    if winner_id not in (m["boxer1_id"], m["boxer2_id"]):
+    if not winner_id or winner_id not in (m["boxer1_id"], m["boxer2_id"]):
         return jsonify({"error":"winner must be one of the bout boxers"}), 400
 
     # Save result
     db.execute(
         """
-        UPDATE boxing.tournament_match
+        UPDATE boxing.tournament_matches
         SET winner_id=%s, method=%s, result_rounds=%s
         WHERE match_id=%s
         """,
@@ -628,7 +641,7 @@ def api_save_result(match_id):
 
     def all_winners_for_round(rn):
         rows = db.fetch_all(
-            "SELECT winner_id FROM boxing.tournament_match WHERE tournament_id=%s AND round=%s ORDER BY bout_no",
+            "SELECT winner_id FROM boxing.tournament_matches WHERE tournament_id=%s AND round=%s ORDER BY bout_no",
             [tid, rn]
         )
         return rows if rows and all(r["winner_id"] for r in rows) else None
@@ -637,7 +650,6 @@ def api_save_result(match_id):
     if round_num == 1:
         winners = all_winners_for_round(1)
         if winners and len(winners) == 4:
-            # SF1: W(QF1) vs W(QF2); SF2: W(QF3) vs W(QF4)
             sf_pairs = [
                 (winners[0]["winner_id"], winners[1]["winner_id"]),
                 (winners[2]["winner_id"], winners[3]["winner_id"]),
@@ -645,7 +657,7 @@ def api_save_result(match_id):
             for i,(b1,b2) in enumerate(sf_pairs, start=1):
                 db.execute(
                     """
-                    INSERT INTO boxing.tournament_match (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
+                    INSERT INTO boxing.tournament_matches (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
                     VALUES (%s, 2, %s, %s, %s, %s)
                     """,
                     [tid, i, b1, b2, m["is_official"]]
@@ -658,7 +670,7 @@ def api_save_result(match_id):
             b1, b2 = winners[0]["winner_id"], winners[1]["winner_id"]
             db.execute(
                 """
-                INSERT INTO boxing.tournament_match (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
+                INSERT INTO boxing.tournament_matches (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
                 VALUES (%s, 3, 1, %s, %s, %s)
                 """,
                 [tid, b1, b2, m["is_official"]]
@@ -666,9 +678,9 @@ def api_save_result(match_id):
 
     return jsonify({"ok": True})
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 # Health / Static Debug
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 @app.get("/healthz")
 def healthz():
     try:
@@ -692,9 +704,9 @@ def _debug_static():
 def _debug_static_file(name):
     return send_from_directory(app.static_folder, name)
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 # Main
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 if __name__ == "__main__":
     app.run(
         debug=True,
