@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Create 8-Boxer Tournament</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#0f172a; --card:#111827; --ink:#e5e7eb; --ink-dim:#9ca3af; --accent:#60a5fa; --muted:#1f2937; }
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Arial}
+    header{padding:16px 20px;background:#0b1220;border-bottom:1px solid #0f1a2b}
+    main{max-width:980px;margin:24px auto;padding:0 16px}
+    .card{background:var(--card);border:1px solid #1f2937;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+    .p{padding:18px}
+    h1{font-size:24px;margin:0 0 8px}
+    label{display:block;margin:10px 0 6px;color:var(--ink-dim);font-size:14px}
+    input[type="text"]{width:100%;padding:10px 12px;background:#0e1626;border:1px solid #253047;border-radius:10px;color:var(--ink)}
+    .row{display:grid;gap:16px}
+    @media(min-width:900px){.grid-2{grid-template-columns:1fr 1fr}}
+    select{width:100%;padding:10px;background:#0e1626;border:1px solid #253047;border-radius:10px;color:var(--ink)}
+    .seed{display:grid;grid-template-columns:60px 1fr;gap:10px;align-items:center}
+    .btn{background:var(--accent);color:#04152b;border:0;padding:10px 14px;border-radius:10px;font-weight:600;cursor:pointer}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .pill{display:inline-flex;gap:8px;align-items:center;background:var(--muted);padding:8px 10px;border-radius:999px}
+    .switch{display:flex;align-items:center;gap:10px}
+    .error{color:#f87171;margin-top:10px}
+    .hint{color:var(--ink-dim);font-size:13px}
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Simple Sports Sims Boxing</strong>
+  </header>
+  <main>
+    <div class="card">
+      <div class="p">
+        <h1>New 8-Boxer Tournament</h1>
+        <p class="hint">Pick 8 boxers (no duplicates), set seeds 1–8 (1 fights 8, 4 fights 5, 3 fights 6, 2 fights 7). Exhibition by default.</p>
+
+        <div class="row grid-2">
+          <div>
+            <label for="tname">Tournament name</label>
+            <input id="tname" type="text" placeholder="Great Heavyweights — Exhibition 8" />
+          </div>
+          <div class="switch" style="margin-top:28px">
+            <label for="is_exhib" style="margin:0">Exhibition</label>
+            <input id="is_exhib" type="checkbox" checked />
+            <span class="hint">Uncheck to make official (affects records)</span>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:18px">
+          <div class="card" style="background:#0b1220;border-color:#1d2a40">
+            <div class="p">
+              <div class="row">
+                <div class="seed">
+                  <span class="pill"><strong>#1</strong></span>
+                  <select id="seed1"></select>
+                </div>
+                <div class="seed">
+                  <span class="pill"><strong>#2</strong></span>
+                  <select id="seed2"></select>
+                </div>
+                <div class="seed">
+                  <span class="pill"><strong>#3</strong></span>
+                  <select id="seed3"></select>
+                </div>
+                <div class="seed">
+                  <span class="pill"><strong>#4</strong></span>
+                  <select id="seed4"></select>
+                </div>
+                <div class="seed">
+                  <span class="pill"><strong>#5</strong></span>
+                  <select id="seed5"></select>
+                </div>
+                <div class="seed">
+                  <span class="pill"><strong>#6</strong></span>
+                  <select id="seed6"></select>
+                </div>
+                <div class="seed">
+                  <span class="pill"><strong>#7</strong></span>
+                  <select id="seed7"></select>
+                </div>
+                <div class="seed">
+                  <span class="pill"><strong>#8</strong></span>
+                  <select id="seed8"></select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p id="err" class="error" style="display:none"></p>
+
+        <div style="margin-top:12px;display:flex;gap:10px">
+          <button class="btn" id="createBtn">Create tournament</button>
+          <button class="btn" id="seedPresetBtn" style="background:#34d399;color:#052b19">Quick-fill: Ali, Tyson, Lennox, Foreman, Holyfield, Fury, Usyk, Wlad</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const selects = [...Array(8)].map((_,i)=>document.getElementById('seed'+(i+1)));
+    const err = document.getElementById('err');
+    const btn = document.getElementById('createBtn');
+
+    // Load boxers
+    async function loadBoxers() {
+      const r = await fetch('/api/boxers');
+      const data = await r.json();
+      for (const sel of selects) {
+        sel.innerHTML = '<option value="">— choose a boxer —</option>' +
+          data.boxers.map(b=>`<option value="${b.boxer_id}">${b.name}</option>`).join('');
+      }
+    }
+
+    // Prevent duplicates
+    function validateUnique() {
+      const vals = selects.map(s=>s.value).filter(Boolean);
+      const dup = vals.find((v,i)=>vals.indexOf(v)!==i);
+      if (dup) {
+        err.style.display = '';
+        err.textContent = 'Each seed must be a different boxer.';
+        btn.disabled = true;
+      } else {
+        err.style.display = 'none';
+        btn.disabled = false;
+      }
+    }
+    selects.forEach(s=>s.addEventListener('change', validateUnique));
+
+    // Quick preset
+    document.getElementById('seedPresetBtn').addEventListener('click', async ()=>{
+      const names = [
+        'Muhammad Ali','Mike Tyson','Lennox Lewis','George Foreman',
+        'Evander Holyfield','Tyson Fury','Oleksandr Usyk','Wladimir Klitschko'
+      ];
+      const r = await fetch('/api/boxers');
+      const data = await r.json();
+      const byName = Object.fromEntries(data.boxers.map(b=>[b.name,b.boxer_id]));
+      selects.forEach((sel,i)=>{
+        const id = byName[names[i]];
+        if (id) sel.value = String(id);
+      });
+      validateUnique();
+    });
+
+    // Create tournament
+    btn.addEventListener('click', async ()=>{
+      const tname = document.getElementById('tname').value.trim() || 'Exhibition 8';
+      const isExhib = document.getElementById('is_exhib').checked;
+
+      const picks = selects.map((s,i)=>({ seed: i+1, boxer_id: s.value ? Number(s.value) : null }));
+      if (picks.some(p=>!p.boxer_id)) {
+        err.style.display = '';
+        err.textContent = 'Please select all 8 boxers.';
+        return;
+      }
+      if (btn.disabled) return;
+
+      const resp = await fetch('/api/tournaments', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ name: tname, is_exhibition: isExhib, seeds: picks })
+      });
+      const out = await resp.json();
+      if (!resp.ok) {
+        err.style.display = '';
+        err.textContent = out.error || 'Failed to create tournament.';
+      } else {
+        window.location.href = `/tournaments/${out.tournament_id}`;
+      }
+    });
+
+    loadBoxers();
+  </script>
+</body>
+</html>

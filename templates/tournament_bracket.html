@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>{{ tournament.name }} — Bracket</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{margin:0;background:#0f172a;color:#e5e7eb;font-family:system-ui,Arial}
+    header{padding:16px 20px;background:#0b1220;border-bottom:1px solid #0f1a2b}
+    main{max-width:980px;margin:24px auto;padding:0 16px}
+    h1{margin:0 0 14px}
+    .col{display:grid;gap:18px}
+    .round{background:#111827;border:1px solid #1f2937;border-radius:14px;padding:16px}
+    .match{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #22314b}
+    .match:first-child{border-top:0}
+    .btn{background:#60a5fa;color:#04152b;border:0;padding:8px 10px;border-radius:10px;font-weight:600;cursor:pointer}
+    .sel{background:#0e1626;border:1px solid #253047;color:#e5e7eb;border-radius:8px;padding:6px 8px}
+    .hint{color:#9ca3af;font-size:13px}
+  </style>
+</head>
+<body>
+  <header>
+    <strong>{{ tournament.name }}</strong>
+  </header>
+  <main>
+    <h1>Bracket</h1>
+    <p class="hint">{{ 'Exhibition' if tournament.is_exhibition else 'Official' }}</p>
+
+    {% for rnum, rlabel in [(1,'Quarterfinals'), (2,'Semifinals'), (3,'Final')] %}
+      <div class="round">
+        <h2 style="margin:0 0 10px">{{ rlabel }}</h2>
+        {% set matches_for_round = [m for m in matches if m.round == rnum] %}
+        {% if matches_for_round %}
+          {% for m in matches_for_round %}
+            <div class="match">
+              <div>
+                <div>{{ m.boxer1_name or 'TBD' }} vs {{ m.boxer2_name or 'TBD' }}</div>
+                {% if m.winner_name %}
+                  <div class="hint">Winner: {{ m.winner_name }} {{ '(' ~ m.method ~ ', ' ~ (m.result_rounds|string) ~ 'R)' if m.method else '' }}</div>
+                {% endif %}
+              </div>
+              <div>
+                {% if not m.winner_id and m.boxer1_id and m.boxer2_id %}
+                  <select class="sel" id="pick-{{m.match_id}}">
+                    <option value="">Select winner…</option>
+                    <option value="{{ m.boxer1_id }}">{{ m.boxer1_name }}</option>
+                    <option value="{{ m.boxer2_id }}">{{ m.boxer2_name }}</option>
+                  </select>
+                  <select class="sel" id="method-{{m.match_id}}">
+                    <option value="UD">UD</option>
+                    <option value="SD">SD</option>
+                    <option value="MD">MD</option>
+                    <option value="TKO">TKO</option>
+                    <option value="KO">KO</option>
+                    <option value="RTD">RTD</option>
+                  </select>
+                  <input class="sel" id="rounds-{{m.match_id}}" type="number" min="1" max="15" value="12" style="width:70px"/>
+                  <button class="btn" onclick="submitResult({{m.match_id}})">Save</button>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="hint">No bouts in this round yet.</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </main>
+
+  <script>
+    async function submitResult(matchId){
+      const winner = document.getElementById('pick-'+matchId).value;
+      const method = document.getElementById('method-'+matchId).value;
+      const rounds = Number(document.getElementById('rounds-'+matchId).value || 12);
+      if(!winner){ alert('Pick a winner'); return; }
+      const r = await fetch(`/api/matches/${matchId}/result`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ winner_id: Number(winner), method, result_rounds: rounds })
+      });
+      if(!r.ok){ const j=await r.json(); alert(j.error||'Error'); return; }
+      // After saving result, server may create the next round automatically
+      location.reload();
+    }
+  </script>
+</body>
+</html>

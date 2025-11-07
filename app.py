@@ -1,4 +1,10 @@
-# app.py
+# app.py — Simple Sports Sims Boxing (with Tournament UI & APIs)
+# -----------------------------------------------------------------------------
+# This file reproduces your existing app.py and adds a complete 8‑boxer
+# tournament flow (HTML UI + JSON APIs) using your existing boxing schema
+# conventions (boxing.boxer, boxer_ratings, etc.).
+# -----------------------------------------------------------------------------
+
 import os
 from pathlib import Path
 
@@ -9,8 +15,8 @@ from flask import (
 from flask_cors import CORS
 from dotenv import load_dotenv
 
+# Fight engine
 from engine import Fighter, simulate_fight
-
 
 # Central DB helpers (must expose: get_conn, fetch_one, fetch_all, execute)
 import db
@@ -337,9 +343,9 @@ def create_stable():
     flash(f'Stable "{name}" created.', "success")
     return redirect(url_for("stables"))
 
-# --- FIGHT SIMULATION (JSON) ---
-from engine import Fighter, simulate_fight
-
+# -----------------------------------------------------------------------------
+# FIGHT SIMULATION (JSON)
+# -----------------------------------------------------------------------------
 @app.post("/sim/fight")
 def sim_fight():
     """
@@ -405,7 +411,9 @@ def sim_fight():
     result = simulate_fight(A, B, rounds=rounds, seed=seed)
     return result, 200
 
-# --- EXHIBITIONS: NEW (form to pick fighters) ---
+# -----------------------------------------------------------------------------
+# EXHIBITIONS (FORM + RESULT VIEW)
+# -----------------------------------------------------------------------------
 @app.get("/exhibitions/new")
 def exhibition_new():
     boxers = db.fetch_all("""
@@ -419,8 +427,6 @@ def exhibition_new():
     """)
     return render_template("exhibition_new.html", boxers=boxers)
 
-
-# --- EXHIBITIONS: SIMULATE (POST -> runs engine, shows result) ---
 @app.post("/exhibitions/simulate")
 def exhibition_simulate():
     a_id = int(request.form.get("boxer_a_id"))
@@ -487,10 +493,181 @@ def exhibition_simulate():
         a=A, b=B, rounds=rounds, seed=seed, sim=sim
     )
 
+# -----------------------------------------------------------------------------
+# TOURNAMENTS (8‑Boxer UI)
+# -----------------------------------------------------------------------------
+# Expected tables (Postgres):
+#   boxing.tournament (tournament_id SERIAL PK, name TEXT, is_exhibition BOOL, created_at TIMESTAMP)
+#   boxing.tournament_boxer (tournament_id INT FK, boxer_id INT FK, seed INT, PK (tournament_id, boxer_id))
+#   boxing.tournament_match (
+#       match_id SERIAL PK, tournament_id INT FK, round INT, bout_no INT,
+#       boxer1_id INT, boxer2_id INT, scheduled_at TIMESTAMP,
+#       is_official BOOL, winner_id INT, method TEXT, result_rounds INT, notes TEXT,
+#       UNIQUE (tournament_id, round, bout_no)
+#   )
 
+# --- HTML: create form ---
+@app.get("/tournaments/new")
+def tournament_new():
+    return render_template("tournament_new.html")
+
+# --- HTML: bracket view ---
+@app.get("/tournaments/<int:tid>")
+def tournament_bracket(tid):
+    t = db.fetch_one(
+        "SELECT tournament_id, name, is_exhibition FROM boxing.tournament WHERE tournament_id=%s",
+        [tid]
+    )
+    if not t:
+        abort(404)
+
+    matches = db.fetch_all(
+        """
+        SELECT m.match_id, m.round, m.bout_no,
+               m.boxer1_id, b1.first_name || ' ' || b1.last_name AS boxer1_name,
+               m.boxer2_id, b2.first_name || ' ' || b2.last_name AS boxer2_name,
+               m.winner_id, bw.first_name || ' ' || bw.last_name AS winner_name,
+               m.method, m.result_rounds
+        FROM boxing.tournament_match m
+        LEFT JOIN boxing.boxer b1 ON b1.boxer_id = m.boxer1_id
+        LEFT JOIN boxing.boxer b2 ON b2.boxer_id = m.boxer2_id
+        LEFT JOIN boxing.boxer bw ON bw.boxer_id = m.winner_id
+        WHERE m.tournament_id=%s
+        ORDER BY m.round, m.bout_no
+        """,
+        [tid]
+    )
+
+    return render_template("tournament_bracket.html", tournament=t, matches=matches)
+
+# --- API: list boxers for selects ---
+@app.get("/api/boxers")
+def api_boxers():
+    rows = db.fetch_all("SELECT boxer_id, (first_name || ' ' || last_name) AS name FROM boxing.boxer ORDER BY last_name, first_name")
+    return jsonify({"boxers": rows})
+
+# --- API: create tournament + quarterfinals ---
+@app.post("/api/tournaments")
+def api_create_tournament():
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "Exhibition 8").strip()
+    is_exhibition = bool(data.get("is_exhibition", True))
+    seeds = data.get("seeds") or []  # list of {seed:int, boxer_id:int}
+
+    if len(seeds) != 8 or any(not s.get("boxer_id") for s in seeds):
+        return jsonify({"error":"Need 8 boxers with seeds 1..8"}), 400
+    seed_nums = sorted(s["seed"] for s in seeds)
+    if seed_nums != [1,2,3,4,5,6,7,8]:
+        return jsonify({"error":"Seeds must be 1..8"}), 400
+
+    # Create tournament
+    trow = db.fetch_one(
+        "INSERT INTO boxing.tournament (name, is_exhibition) VALUES (%s, %s) RETURNING tournament_id",
+        [name, is_exhibition]
+    )
+    tid = trow["tournament_id"]
+
+    # Insert entries
+    for s in seeds:
+        db.execute(
+            "INSERT INTO boxing.tournament_boxer (tournament_id, boxer_id, seed) VALUES (%s,%s,%s)",
+            [tid, s["boxer_id"], s["seed"]]
+        )
+
+    # Create QFs: (1-8), (4-5), (3-6), (2-7)
+    pairs = [(1,8),(4,5),(3,6),(2,7)]
+    bout_no = 1
+    for a,b in pairs:
+        b1 = db.fetch_one(
+            "SELECT boxer_id FROM boxing.tournament_boxer WHERE tournament_id=%s AND seed=%s",
+            [tid,a]
+        )["boxer_id"]
+        b2 = db.fetch_one(
+            "SELECT boxer_id FROM boxing.tournament_boxer WHERE tournament_id=%s AND seed=%s",
+            [tid,b]
+        )["boxer_id"]
+        db.execute(
+            """
+            INSERT INTO boxing.tournament_match (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
+            VALUES (%s, 1, %s, %s, %s, %s)
+            """,
+            [tid, bout_no, b1, b2, not is_exhibition]
+        )
+        bout_no += 1
+
+    return jsonify({"tournament_id": tid})
+
+# --- API: record result + auto-advance ---
+@app.post("/api/matches/<int:match_id>/result")
+def api_save_result(match_id):
+    data = request.get_json(silent=True) or {}
+    winner_id = data.get("winner_id")
+    method = data.get("method") or "UD"
+    rounds = int(data.get("result_rounds") or 12)
+
+    m = db.fetch_one("SELECT * FROM boxing.tournament_match WHERE match_id=%s", [match_id])
+    if not m:
+        return jsonify({"error":"match not found"}), 404
+    if not winner_id:
+        return jsonify({"error":"winner_id required"}), 400
+    if winner_id not in (m["boxer1_id"], m["boxer2_id"]):
+        return jsonify({"error":"winner must be one of the bout boxers"}), 400
+
+    # Save result
+    db.execute(
+        """
+        UPDATE boxing.tournament_match
+        SET winner_id=%s, method=%s, result_rounds=%s
+        WHERE match_id=%s
+        """,
+        [winner_id, method, rounds, match_id]
+    )
+
+    tid = m["tournament_id"]
+    round_num = m["round"]
+
+    def all_winners_for_round(rn):
+        rows = db.fetch_all(
+            "SELECT winner_id FROM boxing.tournament_match WHERE tournament_id=%s AND round=%s ORDER BY bout_no",
+            [tid, rn]
+        )
+        return rows if rows and all(r["winner_id"] for r in rows) else None
+
+    # QFs -> SFs
+    if round_num == 1:
+        winners = all_winners_for_round(1)
+        if winners and len(winners) == 4:
+            # SF1: W(QF1) vs W(QF2); SF2: W(QF3) vs W(QF4)
+            sf_pairs = [
+                (winners[0]["winner_id"], winners[1]["winner_id"]),
+                (winners[2]["winner_id"], winners[3]["winner_id"]),
+            ]
+            for i,(b1,b2) in enumerate(sf_pairs, start=1):
+                db.execute(
+                    """
+                    INSERT INTO boxing.tournament_match (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
+                    VALUES (%s, 2, %s, %s, %s, %s)
+                    """,
+                    [tid, i, b1, b2, m["is_official"]]
+                )
+
+    # SFs -> Final
+    if round_num == 2:
+        winners = all_winners_for_round(2)
+        if winners and len(winners) == 2:
+            b1, b2 = winners[0]["winner_id"], winners[1]["winner_id"]
+            db.execute(
+                """
+                INSERT INTO boxing.tournament_match (tournament_id, round, bout_no, boxer1_id, boxer2_id, is_official)
+                VALUES (%s, 3, 1, %s, %s, %s)
+                """,
+                [tid, b1, b2, m["is_official"]]
+            )
+
+    return jsonify({"ok": True})
 
 # -----------------------------------------------------------------------------
-# Health / Static Debug (remove after verifying)
+# Health / Static Debug
 # -----------------------------------------------------------------------------
 @app.get("/healthz")
 def healthz():
