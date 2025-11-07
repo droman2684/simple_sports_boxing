@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% block content %}
 <div class="card">
   <div class="p">
@@ -28,13 +27,7 @@
               <td>{{ t.name }}</td>
               <td>{{ 'Exhibition' if t.is_exhibition else 'Official' }}</td>
               <td>{{ t.bout_count or 0 }}</td>
-              <td>
-                {% if t.min_round %}
-                  R{{ t.min_round }}–R{{ t.max_round }}
-                {% else %}
-                  —
-                {% endif %}
-              </td>
+              <td>{% if t.min_round %}R{{ t.min_round }}–R{{ t.max_round }}{% else %}—{% endif %}</td>
               <td><a href="/tournaments/{{ t.tournament_id }}">View</a></td>
             </tr>
             {% endfor %}
